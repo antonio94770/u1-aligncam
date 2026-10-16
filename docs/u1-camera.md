@@ -79,8 +79,11 @@ Conclusions, all of them to be confirmed on a real printer:
    Closer (50 mm) is finer but often leaves the frame.
 3. **Lens calibration is required on the U1.** Away from the bed centre the
    pattern sits near the edge of a wide-angle image, where uncorrected distortion
-   is largest: 17 % accepted without calibration, 53 % with it. A checkerboard
-   calibration routine is not part of the tool yet.
+   is largest: 17 % accepted without calibration, 53 % with it.
+   `aligncam calibrate-camera` (ChArUco board, [method.md](method.md#lens-calibration-aligncam-calibrate-camera))
+   recovers the lens from photos; on the same scenes as the uncorrected case, a
+   calibration from 15 synthetic board photos raises acceptance to 55 %
+   ([benchmark.md](benchmark.md), synthetic).
 4. **The real aim and FOV decide whether the pattern is in the frame.** Every
    simulated camera is aimed at the bed centre; a quarter to a third of the
    poses do not see the whole pattern at 70 mm. The placement must be tuned on

@@ -147,9 +147,12 @@ def sweep_cases(n_per_point: int, base_seed: int = 0):
                 seed += 1
     # Hypothetical U1 side camera, with uncorrected distortion and with a calibrated
     # lens (k1 = 0 stands for a perfect undistortion).
+    u1_seeds: list[tuple[int, int]] = []
     for name, extra in (("u1", {}), ("u1_cal", {"k1": 0.0})):
         for i in range(len(PLACEMENTS)):
             for _ in range(n_per_point):
+                if name == "u1":
+                    u1_seeds.append((i, seed))
                 yield name, float(i), {"placement": i, **extra}, seed
                 seed += 1
     colors_rng = np.random.default_rng(base_seed + 99)
@@ -160,6 +163,11 @@ def sweep_cases(n_per_point: int, base_seed: int = 0):
         colors = {t: FILAMENTS[str(c)] for t, c in enumerate(picks)}
         yield "colors", 0.0, {"bed": bed, "colors": colors, "_names": [bed, *picks]}, seed
         seed += 1
+    # The same scenes as "u1", undistorted with a calibration recovered by
+    # `calibrate-camera` from synthetic board photos taken through the same lens.
+    # Last, so that adding it did not change the seeds of the other sweeps.
+    for i, s in u1_seeds:
+        yield "u1_rcal", float(i), {"placement": i, "recalibrate": True}, s
 
 
 ScenarioFactory = Callable[[np.random.Generator, int], Scenario]

@@ -11,11 +11,13 @@ from pathlib import Path
 import numpy as np
 
 from aligncam.bench.sweeps import random_scenario, sweep_cases
-from aligncam.config import MeasureConfig
+from aligncam.config import CameraConfig, MeasureConfig
 from aligncam.geometry import build_layout
 from aligncam.measure import measure_image
 from aligncam.sim import simulate
-from aligncam.sim.scenario import pattern_in_frame
+from aligncam.sim.board import calibrate_synthetic
+from aligncam.sim.camera import PinholeCamera
+from aligncam.sim.scenario import Scenario, pattern_in_frame
 from aligncam.sim.u1 import PLACEMENTS, random_side_pose
 
 FIELDS = [
@@ -39,13 +41,42 @@ FIELDS = [
     "cam_height_mm",
     "hfov_deg",
     "in_frame",
+    "calib",
 ]
+
+
+CALIB_VIEWS = 15
+
+
+def recovered_calibration(
+    cam: PinholeCamera, sc: Scenario, seed: int
+) -> tuple[CameraConfig | None, str]:
+    """Calibrate the scenario's full-sensor lens from synthetic board photos and express
+    the result in the coordinates of the cropped scene image. Returns the camera config
+    (None if no calibration could be computed) and the calibration status."""
+    assert sc.pose is not None
+    size = (sc.pose.width_px, sc.pose.height_px)
+    centre = np.array(size, dtype=float) / 2.0
+    K_full = cam.K.copy()
+    K_full[:2, 2] = centre  # the crop shifts the principal point away from the centre
+    rng = np.random.default_rng(seed + 7_000_001)
+    res = calibrate_synthetic(K_full, cam.dist, size, rng, None, CALIB_VIEWS, sc.degradation)
+    status = "ok" if res.ok else "rejected:" + "+".join(str(r) for r in res.reasons)
+    if res.camera_matrix is None:
+        return None, status
+    K = res.camera_matrix.copy()
+    K[:2, 2] += cam.K[:2, 2] - centre
+    camera = CameraConfig(
+        resolution_px=cam.size, camera_matrix=K.tolist(), dist_coeffs=res.dist_coeffs.tolist()
+    )
+    return camera, status
 
 
 def run_case(args: tuple) -> list[dict]:
     sweep, value, fixed, seed = args
     names = fixed.pop("_names", None)
     placement = fixed.pop("placement", None)
+    recalibrate = fixed.pop("recalibrate", False)
     rng = np.random.default_rng(seed)
     sc = random_scenario(rng, seed, **fixed)
     if placement is None:
@@ -59,7 +90,10 @@ def run_case(args: tuple) -> list[dict]:
     gsd = sc.gsd_mm_per_px if sc.pose is None else res.camera.gsd_at((0.0, 0.0))
     view = sc.tilt_deg if sc.pose is None else res.camera.view_angle_deg((0.0, 0.0))
     in_frame = sc.pose is None or pattern_in_frame(res.camera, layout, sc.pose)
-    m = measure_image(img, layout, MeasureConfig())
+    camera, calib = None, ""
+    if recalibrate:
+        camera, calib = recovered_calibration(res.camera, sc, seed)
+    m = measure_image(img, layout, MeasureConfig(), camera)
     rows = []
     for t, to in m.tools.items():
         for i, axis in enumerate("xy"):
@@ -88,6 +122,7 @@ def run_case(args: tuple) -> list[dict]:
                     "cam_height_mm": "" if sc.pose is None else sc.pose.position_bed_mm[2],
                     "hfov_deg": "" if sc.pose is None else sc.pose.hfov_deg,
                     "in_frame": int(in_frame),
+                    "calib": calib,
                 }
             )
     return rows

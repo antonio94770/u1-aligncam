@@ -335,6 +335,20 @@ def u1_table(rows: list[dict], sweep: str = "u1") -> str:
     return "\n".join(lines)
 
 
+def calib_summary(rows: list[dict], sweep: str) -> str:
+    """How many synthetic calibrations passed the quality gates, and why others failed."""
+    per_image = {r["seed"]: r.get("calib", "") for r in rows if r["sweep"] == sweep}
+    n_ok = sum(1 for c in per_image.values() if c == "ok")
+    reasons: dict[str, int] = defaultdict(int)
+    for c in per_image.values():
+        for x in c.removeprefix("rejected:").split("+") if c.startswith("rejected") else []:
+            reasons[x] += 1
+    why = ", ".join(f"{k} {v}" for k, v in sorted(reasons.items(), key=lambda kv: -kv[1]))
+    return f"{n_ok} of {len(per_image)} calibrations passed every gate" + (
+        f" (rejections: {why}); rejected ones are still applied here." if why else "."
+    )
+
+
 def build_report(results: Path, docs_dir: Path, image_dir: Path) -> str:
     rows = load(results)
     image_dir.mkdir(parents=True, exist_ok=True)
@@ -419,6 +433,20 @@ def build_report(results: Path, docs_dir: Path, image_dir: Path) -> str:
             "`camera_matrix`/`dist_coeffs`):",
             "",
             u1_table(rows, "u1_cal"),
+            "",
+        ]
+    if any(r["sweep"] == "u1_rcal" for r in rows):
+        md += [
+            "Lens calibrated with `aligncam calibrate-camera`: the same scenes as the",
+            "uncorrected table (same seeds), undistorted with the `camera_matrix` and",
+            "`dist_coeffs` recovered from 15 synthetic ChArUco photos taken through the",
+            "same lens (default k1, k2, p1, p2 model): an imperfect calibration.",
+            calib_summary(rows, "u1_rcal"),
+            "Compare it with the first table (paired). The calibrated-lens table draws",
+            "other random poses, so with 60 images per placement differences of a few",
+            "points against it are sampling noise.",
+            "",
+            u1_table(rows, "u1_rcal"),
             "",
         ]
     md += [

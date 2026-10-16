@@ -27,20 +27,36 @@ class Degradation(BaseModel):
     """None disables JPEG compression."""
 
 
-def project_texture(tex: Texture, cam: PinholeCamera, border_rgb: np.ndarray) -> np.ndarray:
-    """Sample the texture for every (distorted) camera pixel. Returns float32 RGB."""
+def project_texture(
+    tex: Texture, cam: PinholeCamera, border_rgb: np.ndarray, mask_invalid: bool = False
+) -> np.ndarray:
+    """Sample the texture for every (distorted) camera pixel. Returns float32 RGB.
+
+    A strong negative k1 folds back beyond some radius: pixels farther out have no
+    undistorted pre-image and ``cv2.undistortPoints`` returns a wrong one. With
+    ``mask_invalid`` those pixels (round trip worse than 0.5 px) get ``border_rgb``.
+    """
     w, h = cam.size
     u, v = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
     pix = np.stack([u.ravel(), v.ravel()], axis=1)
+    invalid = None
     if cam.dist is not None:
         # distorted pixel -> undistorted pixel
         und = cv2.undistortPoints(pix.reshape(-1, 1, 2), cam.K, cam.dist, P=cam.K)
+        if mask_invalid:
+            norm = np.linalg.solve(
+                cam.K, np.column_stack([und.reshape(-1, 2), np.ones(len(pix))]).T
+            )
+            back, _ = cv2.projectPoints(norm.T.copy(), np.zeros(3), np.zeros(3), cam.K, cam.dist)
+            invalid = np.hypot(*(back.reshape(-1, 2) - pix).T).reshape(h, w) > 0.5
         pix = und.reshape(-1, 2)
     H_mm_from_img = np.linalg.inv(cam.homography())
     M = tex.tex_from_mm @ H_mm_from_img
     hom = np.column_stack([pix, np.ones(len(pix), np.float32)]) @ M.T
     mx = (hom[:, 0] / hom[:, 2]).reshape(h, w).astype(np.float32)
     my = (hom[:, 1] / hom[:, 2]).reshape(h, w).astype(np.float32)
+    if invalid is not None:
+        mx[invalid] = -1e6
 
     # Anti-aliasing: blur the texture to roughly one output pixel footprint.
     footprint = tex.px_per_mm * cam.gsd_at((0.0, 0.0))

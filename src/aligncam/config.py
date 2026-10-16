@@ -150,6 +150,57 @@ class CameraConfig(_Model):
     dist_coeffs: list[float] | None = None
 
 
+class CharucoBoardConfig(_Model):
+    """Printed ChArUco board used by ``aligncam calibrate-camera``.
+
+    Only the ratio marker/square matters for detection, and the absolute scale does not
+    affect the intrinsics, so a slightly scaled print is harmless. It must be flat."""
+
+    squares_x: int = 9
+    squares_y: int = 6
+    square_mm: float = 25.0
+    marker_mm: float = 18.0
+    dictionary: str = "DICT_5X5_100"
+    """Name of an OpenCV predefined ArUco dictionary."""
+
+    @model_validator(mode="after")
+    def _check(self) -> CharucoBoardConfig:
+        if min(self.squares_x, self.squares_y) < 3:
+            raise ValueError("the board needs at least 3 x 3 squares")
+        if not 0.3 * self.square_mm <= self.marker_mm < self.square_mm:
+            raise ValueError("marker_mm must be between 0.3 and 1 times square_mm")
+        return self
+
+
+class CalibrationConfig(_Model):
+    """Lens calibration from photos of a ChArUco board, and its quality gates."""
+
+    board: CharucoBoardConfig = Field(default_factory=CharucoBoardConfig)
+    distortion_model: Literal["k1", "k1k2", "k1k2p", "full"] = "k1k2p"
+    """Free distortion terms: ``k1k2p`` = k1, k2, p1, p2 (k3 fixed at 0), ``full`` adds
+    k3. Which model the U1 lens needs is TO VERIFY ON HARDWARE (a very wide lens may
+    need ``full``, or a fisheye model that is not supported)."""
+    min_corners_per_view: int = 8
+    """Views with fewer detected ChArUco corners are skipped."""
+    min_views: int = 10
+    max_rms_px: float = 1.0
+    """Largest accepted RMS reprojection error over all corners."""
+    outlier_view_factor: float = 3.0
+    """A view whose RMS exceeds this factor times the median view RMS (and max_rms_px)
+    is dropped once and the calibration is repeated."""
+    coverage_grid: tuple[int, int] = (8, 5)
+    """Image split into this many columns x rows to measure corner coverage."""
+    min_coverage: float = 0.6
+    """Fraction of grid cells that must contain at least one detected corner."""
+    min_tilt_spread_deg: float = 20.0
+    """Largest angle between the board normals of any two views. Views of parallel
+    planes (e.g. the board always flat on the bed) cannot separate focal length
+    from distance."""
+    max_focal_rel_std: float = 0.01
+    """Largest relative standard deviation of fx and fy estimated by OpenCV."""
+    max_principal_point_std_px: float = 15.0
+
+
 class MeasureConfig(_Model):
     """Quality gates of the measurement."""
 
@@ -193,6 +244,7 @@ class AppConfig(_Model):
     printer: PrinterConfig = Field(default_factory=PrinterConfig)
     camera: CameraConfig = Field(default_factory=CameraConfig)
     measure: MeasureConfig = Field(default_factory=MeasureConfig)
+    calibration: CalibrationConfig = Field(default_factory=CalibrationConfig)
 
 
 def load_config(*paths: str | Path) -> AppConfig:

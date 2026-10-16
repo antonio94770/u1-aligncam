@@ -113,6 +113,66 @@ def measure(
         cv2.imwrite(str(out.parent / f"{out.name}_overlay.png"), draw_overlay(img, layout, m))
 
 
+@app.command("calibration-board")
+def calibration_board(
+    out: Path = typer.Option(Path("out/charuco.svg"), help="Output SVG (physical mm size)."),
+    config: list[Path] | None = ConfigOpt,
+) -> None:
+    """Write the printable ChArUco board used by `calibrate-camera`."""
+    from aligncam.calib import board_svg
+
+    b = _config(config).calibration.board
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(board_svg(b), encoding="utf-8")
+    typer.echo(
+        f"{out}: {b.squares_x} x {b.squares_y} squares of {b.square_mm:g} mm, "
+        f"markers {b.marker_mm:g} mm ({b.dictionary}). Print at 100 % and glue it flat."
+    )
+
+
+@app.command("calibrate-camera")
+def calibrate_camera(
+    photos: Path = typer.Argument(..., help="Folder with photos of the ChArUco board."),
+    out: Path = typer.Option(Path("out/camera.calib.yaml"), help="YAML snippet to write."),
+    report: Path | None = typer.Option(None, help="Optional JSON report with every metric."),
+    model: str | None = typer.Option(None, help="Distortion model: k1, k1k2, k1k2p, full."),
+    config: list[Path] | None = ConfigOpt,
+) -> None:
+    """Calibrate the camera lens from board photos and write camera_matrix/dist_coeffs.
+
+    Exits with code 1 and the reasons when a quality gate fails; nothing is written then.
+    """
+    from aligncam.calib import calibrate_folder
+
+    cfg = _config(config).calibration
+    if model is not None:
+        if model not in ("k1", "k1k2", "k1k2p", "full"):
+            raise typer.BadParameter(f"unknown distortion model {model!r}")
+        cfg = cfg.model_copy(update={"distortion_model": model})
+    try:
+        res = calibrate_folder(photos, cfg)
+    except ValueError as exc:
+        raise typer.BadParameter(str(exc)) from exc
+    for name, why in res.skipped_views.items():
+        typer.echo(f"skipped {name}: {why}")
+    for w in res.warnings:
+        typer.echo(f"warning: {w}")
+    typer.echo(
+        f"{len(res.used_views)} views, RMS {res.rms_px:.3f} px, coverage "
+        f"{res.coverage * 100:.0f} %, tilt spread {res.tilt_spread_deg:.0f} deg"
+    )
+    if report is not None:
+        report.parent.mkdir(parents=True, exist_ok=True)
+        report.write_text(json.dumps(res.to_dict(), indent=2), encoding="utf-8")
+    if not res.ok:
+        for reason, msg in zip(res.reasons, res.messages, strict=True):
+            typer.echo(f"rejected ({reason}): {msg}", err=True)
+        raise typer.Exit(1)
+    out.parent.mkdir(parents=True, exist_ok=True)
+    out.write_text(res.to_yaml(), encoding="utf-8")
+    typer.echo(f"status: ok -> {out} (use it as an extra -c file after the camera template)")
+
+
 @app.command()
 def bench(
     out: Path = typer.Option(Path("out/bench"), help="Directory for results.csv."),

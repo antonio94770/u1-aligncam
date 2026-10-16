@@ -232,6 +232,8 @@ must be reviewed and confirmed explicitly, and the writer is a dry run.*
 | `aligncam pattern` | G-code of the calibration pattern + SVG preview |
 | `aligncam simulate` | synthetic photo + JSON ground truth |
 | `aligncam measure IMAGE` | offsets, uncertainty, reasons; `--out` also writes the overlay |
+| `aligncam calibration-board` | printable ChArUco board (SVG, mm units) |
+| `aligncam calibrate-camera DIR` | lens calibration from board photos, with quality gates; writes `camera_matrix`/`dist_coeffs` |
 | `aligncam bench` / `bench-report` | Monte Carlo benchmark, plots and `docs/benchmark.md` |
 | `aligncam serve [--fake \| --moonraker URL]` | web demo |
 | `aligncam fake-moonraker` | standalone fake Moonraker on port 7125 |
@@ -252,7 +254,8 @@ aligncam pattern -c config/pattern.default.yaml -c config/printer.u1.template.ya
   speeds, and the **Jinja2 templates** for the start, tool-change and end G-code.
   The real U1 macros go here once known.
 - [`camera.u1.template.yaml`](config/camera.u1.template.yaml): snapshot URL and an
-  optional OpenCV camera calibration.
+  optional OpenCV camera calibration, written by `aligncam calibrate-camera`
+  ([method](docs/method.md#lens-calibration-aligncam-calibrate-camera)).
 
 ## Development
 

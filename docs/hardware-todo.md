@@ -30,7 +30,9 @@ assumption marked `TO VERIFY ON HARDWARE`.
 | GSD and viewing angle where the pattern is printed | `tools/u1_camera_gsd.py` (pinhole estimate) | likely > 0.25 mm/px at bed centre |
 | Focus at 50-100 mm (fixed-focus wide-angle?) | benchmark `blur` sweep | unknown |
 | Where to park the toolhead for the photo | workflow | unknown |
-| Lens distortion (calibration) | `camera_matrix`, `dist_coeffs` | none; **required** for the U1 side view per the synthetic `u1` benchmark |
+| Lens distortion (calibration) | `camera_matrix`, `dist_coeffs` | none; fill with `aligncam calibrate-camera` ([method.md](method.md#lens-calibration-aligncam-calibrate-camera)); **required** for the U1 side view per the synthetic `u1` benchmark |
+| Distortion model the U1 lens needs (rational/fisheye?) and whether the corners are reachable with a hand-held ChArUco board | `calibration.distortion_model` | `k1k2p` (k1, k2, p1, p2) |
+| Calibration gates on real MJPEG snapshots (RMS, coverage, tilt spread) | `calibration` section of the config | RMS <= 1.0 px, coverage >= 60 %, tilt spread >= 20 deg |
 | Camera distance to the pattern | `Scenario.camera_distance_mm` (simulator only) | 250 mm |
 | Exposure/lighting control (chamber LEDs) | not handled yet | - |
 | **How directional the chamber lighting is** | benchmark `lighting` sweep | 0-0.3 shading strength |

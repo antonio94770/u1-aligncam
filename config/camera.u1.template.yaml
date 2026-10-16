@@ -5,6 +5,8 @@ camera:
   # paxx12 Extended Firmware: "/webcam/snapshot.jpg".
   snapshot_url: "/webcam/?action=snapshot"   # TO VERIFY ON HARDWARE (Moonraker webcam entry)
   resolution_px: [1920, 1080]                # TO VERIFY ON HARDWARE (published as 2 MP / 1080p)
-  # Optional OpenCV calibration (checkerboard). Leave null to skip undistortion.
+  # Optional OpenCV calibration. Leave null to skip undistortion. Fill it with
+  # `aligncam calibrate-camera PHOTOS_DIR` (ChArUco board, see docs/method.md), or pass
+  # the snippet it writes as an extra -c file after this one.
   camera_matrix: null                        # TO VERIFY ON HARDWARE
   dist_coeffs: null                          # TO VERIFY ON HARDWARE

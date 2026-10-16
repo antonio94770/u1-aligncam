@@ -98,6 +98,65 @@ a second, independent estimate.
    after removing a quadratic trend (per-line placement errors, which bands cannot
    see); and a systematic floor (`sigma_floor_mm`).
 
+## Lens calibration (`aligncam calibrate-camera`)
+
+The fiducial homography only models a pinhole camera. On a wide-angle chamber
+camera the pattern may sit near the image edge, where radial distortion bends the
+gratings, so the synthetic U1 benchmark rejects most measurements without a lens
+calibration. `calibrate-camera` fills `camera_matrix` and `dist_coeffs` in the
+`camera` config section; `measure` then runs `cv2.undistort` before everything else.
+
+**Board: ChArUco, not a plain checkerboard.** Every ChArUco corner is identified
+by the ArUco markers next to it, so a photo where the board is only partly in the
+frame still gives its visible corners. With a fixed camera the only way to observe
+the image corners, where distortion is largest, is to hold the board there, and it
+rarely fits entirely. A plain checkerboard is lost as soon as one inner corner is
+hidden. The default board is 9 x 6 squares of 25 mm with 18 mm `DICT_5X5_100`
+markers (225 x 150 mm, fits A4), configurable under `calibration.board`.
+
+**Procedure.**
+
+1. `aligncam calibration-board --out out/charuco.svg`, print at 100 % on matte
+   paper and glue it to something flat (a stiff card or a glass plate). The print
+   scale does not change the intrinsics, flatness does.
+2. With the camera at the resolution and focus used for measuring, take 15-25
+   snapshots. Move the board over the whole frame, especially the corners and
+   edges, and tilt it 20-45 deg in different directions. Do not leave it flat on the
+   bed: parallel views cannot separate the focal length from the distance.
+3. `aligncam calibrate-camera PHOTOS_DIR --out out/camera.calib.yaml`, then measure
+   with `-c config/camera.u1.template.yaml -c out/camera.calib.yaml`.
+
+**Model.** `cv2.calibrateCamera` on the detected corners. The default distortion
+model frees k1, k2, p1, p2 and fixes k3 = 0 (`distortion_model`: `k1`, `k1k2`,
+`k1k2p`, `full`). Views with fewer than 8 corners are skipped; a view whose RMS is
+more than 3 times the median (and above the RMS limit) is dropped once and the
+calibration repeated.
+
+**Quality gates.** Nothing is written when one fails; the command prints why and
+exits with code 1.
+
+| Reason | Trigger (default) |
+|---|---|
+| `too_few_views` | fewer than 10 usable views |
+| `high_reprojection` | RMS reprojection error above 1.0 px |
+| `poor_coverage` | corners in fewer than 60 % of an 8 x 5 grid over the image; the empty image corners are named |
+| `low_tilt_spread` | board normals of all views within 20 deg of each other |
+| `unstable_intrinsics` | OpenCV's std of fx or fy above 1 %, or of the principal point above 15 px |
+
+**Synthetic validation.** `tests/test_calib.py` renders the board through a
+`PinholeCamera` with a known k1 (`aligncam.sim.board`) and checks that the
+calibration recovers k1 within 0.005 and the focal length within 0.5 %, that the
+default model undistorts like the true lens (90 % of the image within 0.2 px after
+a homography), and that each gate fires. The benchmark case `u1_rcal` measures the
+same scenes as `u1` after undistorting them with a calibration recovered from 15
+synthetic board photos ([benchmark.md](benchmark.md)).
+
+**Limits.** A calibration is valid for one resolution and one focus setting. A lens
+wider than the polynomial model can describe would need a fisheye model, which is
+not supported. The simulator's own k1-only lens folds back near the image corners
+of the widest simulated lenses; board views there are rendered as background, so
+some synthetic calibrations of those lenses fail `poor_coverage`.
+
 ## Quality gates (reject instead of guessing)
 
 | Reason | Trigger |

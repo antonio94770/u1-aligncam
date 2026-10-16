@@ -5,7 +5,7 @@
 > real Snapmaker U1. Real prints and real cameras will be worse in ways the
 > simulator does not model. See the README section *Why real hardware is needed*.
 
-- Images: **4770**, tool-axis measurements: **28620**
+- Images: **4770**, tool-axis measurements: **30060**
 - Each measurement: one tool (T1-T3), one axis, random true error in +/-0.3 mm.
 - Unless swept, every case draws random nuisance parameters: camera tilt 0-35 deg,
   uncorrected distortion k1 in [-0.15, 0], blur 0.5-1.2 px, sensor noise, JPEG
@@ -168,6 +168,22 @@ Calibrated lens (k1 = 0, i.e. a perfect undistortion with
 | bed centre, 90 deg | 360 | 100.0 % | 19.4 % | 19.4 % | 16.2 | 0.0 % | 0.33 | 56 deg | 11 % / 33 % / 17 % | low_snr |
 | 70 mm from camera edge, 90 deg | 360 | 66.7 % | 53.3 % | 65.0 % | 16.4 | 0.0 % | 0.24 | 39 deg | 15 % / 75 % / 71 % | no_fiducials |
 | 50 mm from camera edge, 90 deg | 360 | 28.3 % | 28.3 % | 47.1 % | 19.6 | 0.0 % | 0.21 | 36 deg | 0 % / 39 % / 40 % | no_fiducials |
+
+Lens calibrated with `aligncam calibrate-camera`: the same scenes as the
+uncorrected table (same seeds), undistorted with the `camera_matrix` and
+`dist_coeffs` recovered from 15 synthetic ChArUco photos taken through the
+same lens (default k1, k2, p1, p2 model): an imperfect calibration.
+234 of 240 calibrations passed every gate (rejections: poor_coverage 5, too_few_views 3); rejected ones are still applied here.
+Compare it with the first table (paired). The calibrated-lens table draws
+other random poses, so with 60 images per placement differences of a few
+points against it are sampling noise.
+
+| Pattern placement | n | pattern in frame | accepted | accepted, in frame | P95 abs err (um) | unsafe | median GSD (mm/px) | median view angle | accepted, camera 50-100 / 100-150 / 150-200 mm high | most common rejection |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
+| bed centre, 0 deg | 360 | 100.0 % | 5.0 % | 5.0 % | 12.1 | 0.0 % | 0.32 | 59 deg | 0 % / 4 % / 13 % | no_fiducials |
+| bed centre, 90 deg | 360 | 100.0 % | 18.3 % | 18.3 % | 18.4 | 0.0 % | 0.35 | 56 deg | 14 % / 18 % / 24 % | low_snr |
+| 70 mm from camera edge, 90 deg | 360 | 75.0 % | 55.0 % | 57.8 % | 15.3 | 0.0 % | 0.24 | 43 deg | 35 % / 75 % / 55 % | low_snr |
+| 50 mm from camera edge, 90 deg | 360 | 33.3 % | 26.7 % | 50.0 % | 14.8 | 0.0 % | 0.20 | 37 deg | 22 % / 17 % / 39 % | no_fiducials |
 
 ## Random filament colours on two plate types
 
