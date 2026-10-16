@@ -1,0 +1,7 @@
+# Chamber camera of the Snapmaker U1. Resolution, pose and optics are UNKNOWN.
+camera:
+  snapshot_url: "/webcam/?action=snapshot"   # TO VERIFY ON HARDWARE (Moonraker webcam entry)
+  resolution_px: [1920, 1080]                # TO VERIFY ON HARDWARE
+  # Optional OpenCV calibration (checkerboard). Leave null to skip undistortion.
+  camera_matrix: null                        # TO VERIFY ON HARDWARE
+  dist_coeffs: null                          # TO VERIFY ON HARDWARE

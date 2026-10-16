@@ -1,0 +1,43 @@
+# Snapmaker U1 printer description for the G-code generator.
+# NOTHING in this file has been verified on a real U1 yet.
+# Every value marked TO VERIFY ON HARDWARE is a placeholder.
+printer:
+  name: Snapmaker U1
+  bed_size_mm: [270.0, 270.0]        # TO VERIFY ON HARDWARE
+  tool_count: 4                      # TO VERIFY ON HARDWARE
+  nozzle_diameter_mm: 0.4            # TO VERIFY ON HARDWARE
+  filament_diameter_mm: 1.75
+  bed_temp_c: 60
+  filaments:                         # one entry per tool (T0..T3)
+    - {nozzle_temp_c: 210, color_hex: "#e8e8e8"}
+    - {nozzle_temp_c: 210, color_hex: "#c83232"}
+    - {nozzle_temp_c: 210, color_hex: "#2a5bd0"}
+    - {nozzle_temp_c: 210, color_hex: "#e8b820"}
+  print_speed_mm_s: 20
+  travel_speed_mm_s: 120
+  z_hop_mm: 0.4
+  retract_mm: 0.8
+  retract_speed_mm_s: 30
+  flow: 1.0
+
+  # Jinja2 templates. Variables: bed_temp (start), tool + nozzle_temp (tool change).
+  gcode_start: |
+    ; TO VERIFY ON HARDWARE: replace with the U1 start sequence
+    ; (homing, bed mesh, purge). Only standard Klipper commands are used here.
+    M140 S{{ bed_temp }}
+    G28
+    M190 S{{ bed_temp }}
+  gcode_tool_change: |
+    ; TO VERIFY ON HARDWARE: U1 tool-change macro and its arguments.
+    T{{ tool }}
+    M109 S{{ nozzle_temp }}
+  gcode_end: |
+    ; TO VERIFY ON HARDWARE: replace with the U1 end sequence.
+    G91
+    G1 Z10 F600
+    G90
+    M104 S0
+    M140 S0
+
+  # Measured error -> correction of the firmware offset. -1 = subtract the error.
+  offset_correction_sign: -1         # TO VERIFY ON HARDWARE

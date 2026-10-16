@@ -1,0 +1,54 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "u1-aligncam"
+version = "0.1.0.dev0"
+description = "Camera-based tool-offset measurement for the Snapmaker U1 toolchanger (vernier pattern + computer vision)."
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Antonino Catanese" }]
+requires-python = ">=3.11"
+keywords = ["3d-printing", "klipper", "toolchanger", "calibration", "opencv", "snapmaker"]
+classifiers = [
+    "License :: OSI Approved :: GNU General Public License v3 or later (GPLv3+)",
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering :: Image Recognition",
+]
+dependencies = [
+    "numpy>=1.26",
+    "opencv-python-headless>=4.8",
+    "pyyaml>=6",
+    "pydantic>=2.5",
+    "jinja2>=3.1",
+    "typer>=0.12",
+]
+
+[project.optional-dependencies]
+bench = ["matplotlib>=3.8"]
+web = ["fastapi>=0.110", "uvicorn>=0.29", "python-multipart>=0.0.9", "httpx>=0.27"]
+dev = ["pytest>=8", "ruff>=0.5", "matplotlib>=3.8", "fastapi>=0.110", "httpx>=0.27", "python-multipart>=0.0.9"]
+
+[project.scripts]
+aligncam = "aligncam.cli:app"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+aligncam = ["pattern/templates/*", "web/static/*", "data/*.yaml"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py311"
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I", "B", "UP", "NPY"]
+
+[tool.ruff.lint.flake8-bugbear]
+extend-immutable-calls = ["typer.Option", "typer.Argument"]
