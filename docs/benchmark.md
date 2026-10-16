@@ -53,7 +53,7 @@ image corners have a coarser GSD, so treat these as upper bounds):
 | 0.2 | 360 | 100.0 % | 6.3 | 17.3 | 0.3 % | 91.7 % |
 | 0.25 | 360 | 91.7 % | 6.6 | 17.5 | 0.0 % | 94.8 % |
 | 0.3 | 360 | 68.3 % | 7.3 | 20.1 | 0.0 % | 91.1 % |
-| 0.35 | 360 | 38.3 % | 7.6 | 21.6 | 0.3 % | 94.2 % |
+| 0.35 | 360 | 39.4 % | 7.6 | 21.0 | 0.3 % | 94.4 % |
 | 0.4 | 360 | 15.6 % | 7.4 | 20.2 | 0.0 % | 98.2 % |
 | 0.5 | 360 | 0.6 % | 6.0 | 6.7 | 0.0 % | 100.0 % |
 
@@ -157,7 +157,7 @@ Uncorrected lens distortion (no camera calibration):
 
 | Pattern placement | n | pattern in frame | accepted | accepted, in frame | P95 abs err (um) | unsafe | median GSD (mm/px) | median view angle | accepted, camera 50-100 / 100-150 / 150-200 mm high | most common rejection |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
-| bed centre, 0 deg | 360 | 100.0 % | 6.1 % | 6.1 % | 11.1 | 0.0 % | 0.32 | 59 deg | 0 % / 7 % / 15 % | no_fiducials |
+| bed centre, 0 deg | 360 | 100.0 % | 7.8 % | 7.8 % | 10.7 | 0.0 % | 0.32 | 59 deg | 0 % / 11 % / 17 % | no_fiducials |
 | bed centre, 90 deg | 360 | 100.0 % | 17.2 % | 17.2 % | 21.7 | 0.0 % | 0.35 | 56 deg | 12 % / 18 % / 24 % | low_snr |
 | 70 mm from camera edge, 90 deg | 360 | 75.0 % | 16.7 % | 16.3 % | 18.2 | 0.0 % | 0.24 | 43 deg | 5 % / 19 % / 24 % | low_snr |
 | 50 mm from camera edge, 90 deg | 360 | 33.3 % | 9.4 % | 15.0 % | 26.7 | 0.3 % | 0.20 | 37 deg | 4 % / 12 % / 12 % | no_fiducials |
@@ -169,7 +169,7 @@ pulls the pattern towards the image centre):
 
 | Pattern placement | n | pattern in frame | accepted | accepted, in frame | P95 abs err (um) | unsafe | median GSD (mm/px) | median view angle | accepted, camera 50-100 / 100-150 / 150-200 mm high | most common rejection |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
-| bed centre, 0 deg | 360 | 100.0 % | 6.7 % | 6.7 % | 13.3 | 0.0 % | 0.32 | 59 deg | 0 % / 7 % / 17 % | no_fiducials |
+| bed centre, 0 deg | 360 | 100.0 % | 7.2 % | 7.2 % | 13.2 | 0.0 % | 0.32 | 59 deg | 0 % / 9 % / 17 % | no_fiducials |
 | bed centre, 90 deg | 360 | 100.0 % | 19.4 % | 19.4 % | 18.5 | 0.0 % | 0.35 | 56 deg | 16 % / 23 % / 20 % | low_snr |
 | 70 mm from camera edge, 90 deg | 360 | 63.3 % | 61.1 % | 62.3 % | 16.6 | 0.0 % | 0.24 | 43 deg | 35 % / 86 % / 62 % | no_fiducials |
 | 50 mm from camera edge, 90 deg | 360 | 21.7 % | 32.8 % | 59.0 % | 14.4 | 0.0 % | 0.20 | 37 deg | 22 % / 20 % / 53 % | no_fiducials |
@@ -185,10 +185,10 @@ scenes.
 
 | Pattern placement | n | pattern in frame | accepted | accepted, in frame | P95 abs err (um) | unsafe | median GSD (mm/px) | median view angle | accepted, camera 50-100 / 100-150 / 150-200 mm high | most common rejection |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
-| bed centre, 0 deg | 360 | 100.0 % | 5.0 % | 5.0 % | 12.1 | 0.0 % | 0.32 | 59 deg | 0 % / 4 % / 13 % | no_fiducials |
+| bed centre, 0 deg | 360 | 100.0 % | 6.7 % | 6.7 % | 16.4 | 0.0 % | 0.32 | 59 deg | 0 % / 7 % / 17 % | no_fiducials |
 | bed centre, 90 deg | 360 | 100.0 % | 18.3 % | 18.3 % | 18.4 | 0.0 % | 0.35 | 56 deg | 14 % / 18 % / 24 % | low_snr |
 | 70 mm from camera edge, 90 deg | 360 | 75.0 % | 55.0 % | 57.8 % | 15.3 | 0.0 % | 0.24 | 43 deg | 35 % / 75 % / 55 % | low_snr |
-| 50 mm from camera edge, 90 deg | 360 | 33.3 % | 26.7 % | 50.0 % | 14.8 | 0.0 % | 0.20 | 37 deg | 22 % / 17 % / 39 % | no_fiducials |
+| 50 mm from camera edge, 90 deg | 360 | 33.3 % | 30.0 % | 50.0 % | 15.8 | 0.0 % | 0.20 | 37 deg | 33 % / 17 % / 39 % | no_fiducials |
 
 ## Random filament colours on two plate types
 
@@ -199,4 +199,4 @@ HARDWARE).
 | Plate | n | accepted | P95 abs err (um) | unsafe | most common rejection |
 |---|---:|---:|---:|---:|---|
 | dark_pei | 678 | 73.2 % | 12.3 | 0.0 % | polarity_mismatch |
-| gold_pei | 762 | 8.1 % | 42.5 | 0.5 % | shading_sensitive |
+| gold_pei | 762 | 8.9 % | 42.4 | 0.7 % | shading_sensitive |

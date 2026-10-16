@@ -130,6 +130,57 @@ def calibration_board(
     )
 
 
+@app.command("screen-target")
+def screen_target(
+    width_px: int = typer.Option(..., help="Screen width in pixels (native resolution)."),
+    height_px: int = typer.Option(..., help="Screen height in pixels."),
+    ppi: float = typer.Option(..., help="Screen pixel density (pixels per inch)."),
+    out: Path = typer.Option(Path("out/screen"), help="Output folder."),
+    count: int = typer.Option(3, help="Number of patterns, each with other random offsets."),
+    seed: int = typer.Option(0, help="Seed of the random offsets."),
+    mono: bool = typer.Option(False, help="Draw every tool in white (no subpixel colour bias)."),
+    config: list[Path] | None = ConfigOpt,
+) -> None:
+    """Images to show full screen on a tablet or phone and photograph with a real camera.
+
+    Writes pattern_NN.png with known tool offsets plus pattern_NN.json (use it with
+    `measure --truth`), and charuco.png for `calibrate-camera`. Results from these
+    photos are "real camera, pattern on a screen", not a real print.
+    """
+    import numpy as np
+
+    from aligncam.screen import board_on_screen, pattern_on_screen
+    from aligncam.sim import random_offsets
+
+    cfg = _config(config)
+    layout = build_layout(cfg.pattern)
+    size = (width_px, height_px)
+    rng = np.random.default_rng(seed)
+    tools = [t for t in layout.print_order if t != 0]
+    out.mkdir(parents=True, exist_ok=True)
+    for i in range(1, count + 1):
+        offsets = random_offsets(rng, tools, 0.3)
+        shot, shown = pattern_on_screen(layout, offsets, size, ppi, mono=mono)
+        stem = out / f"pattern_{i:02d}"
+        cv2.imwrite(str(stem.with_suffix(".png")), shot.image)
+        truth = {
+            "offsets_mm": {f"T{t}": [round(v, 6) for v in shown[t]] for t in sorted(shown)},
+            "screen": {"width_px": width_px, "height_px": height_px, "ppi": ppi},
+            "px_per_mm": shot.px_per_mm,
+            "displayed_scale": shot.scale,
+            "mono": mono,
+            "note": "real camera, pattern on a screen; not a real print",
+        }
+        stem.with_suffix(".json").write_text(json.dumps(truth, indent=2), encoding="utf-8")
+    board = board_on_screen(cfg.calibration.board, size, ppi)
+    cv2.imwrite(str(out / "charuco.png"), board.image)
+    typer.echo(
+        f"{out}: {count} patterns at {shot.scale * 100:.0f} % of actual size "
+        f"(1 screen px = {1 / shot.px_per_mm * 1000:.0f} um), charuco.png at "
+        f"{board.scale * 100:.0f} %. Show them full screen, without zoom."
+    )
+
+
 @app.command("calibrate-camera")
 def calibrate_camera(
     photos: Path = typer.Argument(..., help="Folder with photos of the ChArUco board."),

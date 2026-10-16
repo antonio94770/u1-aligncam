@@ -136,7 +136,7 @@ nominal conditions, 2-sigma coverage of the reported uncertainty is 95-98 %.
 - **Filaments lighter and darker than the plate**, under directional light, shift
   in opposite directions. This bias is invisible to every internal check. It is now
   rejected (`polarity_mismatch`, `shading_sensitive`). On a gold-coloured plate
-  with random filaments, this means only 8 % of measurements pass, while 0.5 % are
+  with random filaments, this means only 9 % of measurements pass, while 0.7 % are
   still wrong. The practical advice: calibrate with filaments that contrast
   strongly with the plate and are all on the same side of it (all lighter or all
   darker).
@@ -150,6 +150,13 @@ nominal conditions, 2-sigma coverage of the reported uncertainty is 95-98 %.
   bead by an amount that depends on the filament colour. The gates catch the
   worst cases, but how directional the U1 chamber light is decides the real
   accuracy.
+- **Colour-dependent bias.** In a test with a real camera (an iPhone photographing
+  the pattern on an iPad screen, not a print and not the U1,
+  [docs/screen-test.md](docs/screen-test.md)), every measurement was within 12 um
+  with all tools drawn in white, but coloured tools showed repeatable per-tool
+  errors of up to 30-50 um. Whether the screen's subpixels or the lens' chromatic
+  aberration causes it is not yet known; if it is the lens, coloured filaments on
+  the U1 could be biased the same way.
 - **It measures the material, not the nozzle.** Extrusion asymmetries that differ
   between tools show up as offset. That is useful for the user, but it is not the
   same as the firmware offset.
@@ -236,6 +243,7 @@ must be reviewed and confirmed explicitly, and the writer is a dry run.*
 | `aligncam measure IMAGE` | offsets, uncertainty, reasons; `--out` also writes the overlay |
 | `aligncam calibration-board` | printable ChArUco board (SVG, mm units) |
 | `aligncam calibrate-camera DIR` | lens calibration from board photos, with quality gates; writes `camera_matrix`/`dist_coeffs` |
+| `aligncam screen-target` | pattern with known offsets and ChArUco board to show on a tablet or phone, for tests with a real camera and no printer ([docs/screen-test.md](docs/screen-test.md)) |
 | `aligncam bench` / `bench-report` | Monte Carlo benchmark, plots and `docs/benchmark.md` |
 | `aligncam serve [--fake \| --moonraker URL]` | web demo |
 | `aligncam fake-moonraker` | standalone fake Moonraker on port 7125 |
@@ -267,9 +275,10 @@ ruff check . && ruff format --check .
 pytest                      # ~1 minute; the full benchmark is not part of CI
 ```
 
-CI runs lint and tests on Linux and Windows, Python 3.11-3.13. Contributor and
-coding-agent guidelines (no invented U1 details, no automatic offset writes,
-synthetic results only): [AGENTS.md](AGENTS.md).
+CI runs lint and tests on Linux and Windows, Python 3.11-3.13. Contributor rules:
+do not invent U1 details (make them configurable and mark them `TO VERIFY ON
+HARDWARE`), never write offsets automatically, and label every result as synthetic
+or say exactly what was tested.
 
 ## Repository layout
 

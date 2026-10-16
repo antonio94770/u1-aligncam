@@ -117,3 +117,25 @@ def test_reference_unwrap_survives_uneven_light(layout):
     m = measure_image(simulate(sc, layout).image, layout)
     for c in m.cells:
         assert c.reference_split_mm is not None and abs(c.reference_split_mm) < 0.1
+
+
+def test_fiducials_found_when_bed_is_not_the_dominant_colour(layout):
+    """The plate is a small part of a frame dominated by something else (a light
+    chamber wall here; a dark room around a screen in the iPad test): the global
+    detector takes that as the bed; the local fallback must still find the disks."""
+    from aligncam.measure.fiducials import contrast_map, find_blobs, find_fiducials
+
+    sc = Scenario(seed=3, gsd_mm_per_px=0.12, appearance=IDEAL_APP, degradation=IDEAL_DEG)
+    res = simulate(sc, layout)
+    h, w = res.image.shape[:2]
+    framed = np.full((3 * h, 3 * w, 3), 200, np.uint8)
+    framed[h : 2 * h, w : 2 * w] = res.image
+    cmap = contrast_map(framed)
+    assert len(find_blobs(cmap)) < 5  # the global detector sees one big blob
+    fit = find_fiducials(framed, layout)
+    assert fit is not None
+    truth = res.camera.project(layout.fiducial_points()) + np.array([w, h])
+    assert np.abs(fit.image_points - truth).max() < 1.5  # disk radius ~23 px
+    m = measure_image(framed, layout)
+    assert m.status == "ok"
+    assert max(abs(e) for e in _errors(sc, m)) < 0.01

@@ -4,6 +4,14 @@ The pattern has four corner disks plus a smaller orientation dot next to the
 top-left disk, all printed by the reference tool. The disks are found as
 circular blobs that differ from the bed colour; the orientation dot fixes the
 corner order. No assumption is made on the colours or on the image scale.
+
+Two detectors run in turn. The fast one takes the dominant colour of the whole
+image as the bed and cuts the contrast map with one Otsu threshold. It fails when
+the bed is not the dominant colour (the frame shows a lot of chamber, or the
+pattern sits on a screen in a dark room) or when exposure squeezes the contrast.
+The fallback compares every pixel with its local background, thresholds at several
+levels and keeps only round blobs surrounded by clean bed, which is how the
+fiducials are laid out (nothing printed within 2 mm of a disk edge).
 """
 
 from __future__ import annotations
@@ -101,10 +109,102 @@ make near disks several times larger than far ones; the homography and the
 orientation-dot prediction reject wrong quads, so this is only a coarse prune."""
 
 
+def local_contrast_map(img_bgr: np.ndarray, window_frac: float = 0.1) -> np.ndarray:
+    """Per-pixel colour distance from the local background, in Lab units.
+
+    The background is a median over a window of ``window_frac`` of the image size,
+    computed on a reduced copy. A disk covers at most about 4 % of the pattern width,
+    so even a pattern that fills the frame leaves the window mostly bed.
+    """
+    h, w = img_bgr.shape[:2]
+    scale = min(1.0, 480.0 / max(h, w))
+    small = cv2.resize(
+        img_bgr, (max(1, round(w * scale)), max(1, round(h * scale))), interpolation=cv2.INTER_AREA
+    )
+    k = max(5, int(round(window_frac * max(small.shape[:2]))) | 1)
+    lab_small = cv2.cvtColor(small, cv2.COLOR_BGR2LAB)
+    bg = cv2.merge([cv2.medianBlur(c, k) for c in cv2.split(lab_small)])
+    bg = cv2.resize(bg, (w, h), interpolation=cv2.INTER_LINEAR).astype(np.float32)
+    lab = cv2.cvtColor(img_bgr, cv2.COLOR_BGR2LAB).astype(np.float32)
+    d = np.linalg.norm(lab - bg, axis=2)
+    return cv2.GaussianBlur(d, (0, 0), 1.0)
+
+
+LEVELS = (0.12, 0.2, 0.3, 0.42, 0.56, 0.72)
+"""Thresholds of the fallback detector, as fractions of the 99.9th contrast percentile."""
+
+
+def find_isolated_blobs(
+    cmap: np.ndarray, min_area: float = 20.0, min_circularity: float = 0.7
+) -> list[Blob]:
+    """Round, solid blobs with a clean ring of background around them, over several
+    thresholds. Line fragments of the gratings fail the ring test."""
+    top = float(np.percentile(cmap, 99.9))
+    if top <= 0:
+        return []
+    found: list[tuple[Blob, float]] = []
+    for level in LEVELS:
+        t = level * top
+        binary = (cmap > t).astype(np.uint8)
+        contours, _ = cv2.findContours(binary, cv2.RETR_EXTERNAL, cv2.CHAIN_APPROX_NONE)
+        for c in contours:
+            area = cv2.contourArea(c)
+            if area < min_area:
+                continue
+            perim = cv2.arcLength(c, True)
+            circ = 4.0 * math.pi * area / (perim * perim) if perim > 0 else 0.0
+            hull_area = cv2.contourArea(cv2.convexHull(c))
+            if circ < min_circularity or hull_area <= 0 or area / hull_area < 0.9:
+                continue
+            if not _ring_is_clean(binary, c, area):
+                continue
+            m = cv2.moments(c)
+            centre = np.array([m["m10"] / m["m00"], m["m01"] / m["m00"]])
+            found.append((Blob(centre, area, circ), level))
+    # The same disk shows up at several levels: keep its roundest outline.
+    blobs: list[Blob] = []
+    for b, _ in sorted(found, key=lambda bl: -bl[0].circularity):
+        r = math.sqrt(b.area / math.pi)
+        if all(
+            np.hypot(*(b.center - o.center)) > 0.7 * max(r, math.sqrt(o.area / math.pi))
+            for o in blobs
+        ):
+            blobs.append(b)
+    return blobs
+
+
+def _ring_is_clean(binary: np.ndarray, contour: np.ndarray, area: float) -> bool:
+    """Less than 10 % of a ring from 0.25 to 0.55 blob radii outside the blob is
+    above the threshold. (The orientation dot is 0.67 disk radii from its disk.)"""
+    r = math.sqrt(area / math.pi)
+    inner, outer = max(1, int(round(0.25 * r))), max(2, int(round(0.55 * r)))
+    x, y, w, h = cv2.boundingRect(contour)
+    pad = outer + 1
+    x0, y0 = max(x - pad, 0), max(y - pad, 0)
+    x1, y1 = min(x + w + pad, binary.shape[1]), min(y + h + pad, binary.shape[0])
+    mask = np.zeros((y1 - y0, x1 - x0), np.uint8)
+    cv2.drawContours(mask, [contour - np.array([x0, y0])], -1, 1, thickness=cv2.FILLED)
+    near = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * inner + 1,) * 2))
+    far = cv2.dilate(mask, cv2.getStructuringElement(cv2.MORPH_ELLIPSE, (2 * outer + 1,) * 2))
+    ring = (far > 0) & (near == 0)
+    if not ring.any():
+        return False
+    return float(binary[y0:y1, x0:x1][ring].mean()) < 0.1
+
+
 def find_fiducials(img_bgr: np.ndarray, layout: Layout, max_candidates: int = 10):
     """Locate the fiducials and fit the homography. Returns None when not found."""
     cmap = contrast_map(img_bgr)
     blobs = sorted(find_blobs(cmap), key=lambda b: -b.area)[:max_candidates]
+    fit = _fit_fiducials(cmap, blobs, layout)
+    if fit is None:
+        cmap = local_contrast_map(img_bgr)
+        blobs = sorted(find_isolated_blobs(cmap), key=lambda b: -b.area)[:16]
+        fit = _fit_fiducials(cmap, blobs, layout)
+    return fit
+
+
+def _fit_fiducials(cmap: np.ndarray, blobs: list[Blob], layout: Layout) -> FiducialFit | None:
     if len(blobs) < 5:
         return None
     model = layout.fiducial_points()

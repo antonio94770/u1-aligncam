@@ -36,6 +36,7 @@ assumption marked `TO VERIFY ON HARDWARE`.
 | Camera distance to the pattern | `Scenario.camera_distance_mm` (simulator only) | 250 mm |
 | Exposure/lighting control (chamber LEDs) | not handled yet | - |
 | **How directional the chamber lighting is** | benchmark `lighting` sweep | 0-0.3 shading strength |
+| **Colour-dependent bias** (lens chromatic aberration with coloured filaments) | not modelled; seen in the screen test ([screen-test.md](screen-test.md)) | white pattern within 12 um, coloured tools up to 30-50 um on an iPad screen |
 
 ## Print
 

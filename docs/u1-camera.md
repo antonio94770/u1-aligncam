@@ -58,7 +58,7 @@ measurement. Synthetic results, 360 tool-axis measurements per row; full tables 
 
 | Placement | Accepted, no lens calibration | Accepted, calibrated lens | ... camera >= 100 mm high | P95 error | Pattern fully in frame |
 |---|---:|---:|---:|---:|---:|
-| Bed centre, 0 deg | 6 % | 7 % | 7-17 % | 11-13 um | 100 % |
+| Bed centre, 0 deg | 8 % | 7 % | 9-17 % | 11-13 um | 100 % |
 | Bed centre, 90 deg | 17 % | 19 % | 20-23 % | 18-22 um | 100 % |
 | **70 mm from the camera edge, 90 deg** | 17 % | **61 %** | **62-86 %** | 17-18 um | 63-75 % |
 | 50 mm from the camera edge, 90 deg | 9 % | 33 % | 20-53 % | 14-27 um | 22-33 % |
