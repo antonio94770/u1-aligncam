@@ -12,3 +12,6 @@ htmlcov/
 # Generated outputs (benchmark results that belong in the README are copied to docs/)
 out/
 *.log
+
+# Local tool settings
+.claude/

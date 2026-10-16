@@ -149,7 +149,35 @@ aligncam pattern --out out/pattern                       # G-code + SVG preview
 aligncam simulate --out out/sim --random-offsets-mm 0.2  # synthetic photo + ground truth
 aligncam measure out/sim.png --truth out/sim.json --out out/meas
 aligncam bench --cases 60 && aligncam bench-report       # full benchmark (~15 min)
+
+aligncam serve --fake                                    # web demo on http://127.0.0.1:8080
 ```
+
+## Web demo and printer integration (mock)
+
+`aligncam serve --fake` starts a small Fluidd-style page. It can:
+
+- render a **synthetic photo** with random tool errors (resolution, tilt and blur
+  sliders) and show the measurement next to the ground truth;
+- measure an **uploaded photo**;
+- run the full **printer workflow** against a Moonraker: upload the pattern
+  G-code, start the print, wait, take a webcam snapshot, measure, propose a
+  correction. With `--fake`, an in-process fake Moonraker plays the printer. It has
+  hidden tool errors and returns a synthetic photo of the printed pattern.
+  `aligncam serve --moonraker http://<printer>:7125` points it at a real Moonraker
+  (untested on a U1: TO VERIFY ON HARDWARE).
+
+**Offsets are never written automatically.** The page shows the proposed
+correction. Applying it opens a confirmation dialog: the user picks the tools and
+ticks "I checked the values". The confirmation is bound to that exact proposal
+(by digest). The only writer in this build is a **dry run**, which reports what it
+would change and sends nothing to the printer. The Moonraker client has no method
+that changes offsets, and the tests check that the workflow never sends a G-code
+command.
+
+Only standard Moonraker endpoints are used: `/server/files/upload`,
+`/printer/print/start`, `/printer/objects/query`, `/server/webcams/list`, and the
+webcam snapshot URL.
 
 Hardware-dependent settings live in [`config/`](config). Every unknown is marked
 `TO VERIFY ON HARDWARE`.
@@ -158,7 +186,8 @@ Hardware-dependent settings live in [`config/`](config). Every unknown is marked
 
 ```
 config/          YAML configs (pattern, printer template, camera template)
-src/aligncam/    geometry, pattern (G-code), sim (synthetic camera), measure, bench, cli
+src/aligncam/    geometry, pattern (G-code), sim (synthetic camera), measure, bench,
+                 printer (Moonraker client, fake Moonraker, offsets), web, cli
 tests/           pytest suite, run in CI on Linux and Windows
 docs/            method, benchmark, prior art, hardware TODO list, plan B
 ```
@@ -168,7 +197,7 @@ docs/            method, benchmark, prior art, hardware TODO list, plan B
 - [x] M1: vernier pattern, G-code generator with configurable macro templates, image simulator
 - [x] M2: measurement pipeline with uncertainty and rejection, tests
 - [x] M3: Monte Carlo benchmark (resolution, blur, noise, contrast, tilt, distortion, lighting), plots
-- [ ] M4: Moonraker client + fake Moonraker, dry-run offset writer, web demo
+- [x] M4: Moonraker client + fake Moonraker, dry-run offset writer with bound confirmation, web demo
 - [ ] M5: polish, demo GIF
 - [x] Plan B design: upward-looking nozzle camera, kTAMV-style ([docs](docs/plan-b-nozzle-camera.md))
 - [ ] On hardware: verify every `TO VERIFY ON HARDWARE` item ([list](docs/hardware-todo.md))

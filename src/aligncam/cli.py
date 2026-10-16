@@ -135,5 +135,47 @@ def bench_report(
     typer.echo(f"wrote {docs / 'benchmark.md'} and plots in {docs / 'images'}")
 
 
+@app.command()
+def serve(
+    port: int = 8080,
+    host: str = typer.Option("127.0.0.1", help="Use 0.0.0.0 to expose on the network."),
+    moonraker: str | None = typer.Option(None, help="Moonraker URL, e.g. http://printer:7125"),
+    fake: bool = typer.Option(False, help="Use an in-process fake Moonraker (no printer)."),
+    config: list[Path] | None = ConfigOpt,
+) -> None:
+    """Start the web demo. Offsets are only ever written by the dry-run writer."""
+    import uvicorn
+
+    from aligncam.printer.moonraker import MoonrakerClient
+    from aligncam.web.app import create_app
+
+    cfg = _config(config)
+    client = None
+    if fake:
+        from fastapi.testclient import TestClient
+
+        from aligncam.printer.fake_moonraker import create_app as fake_app
+
+        client = MoonrakerClient(
+            "fake://in-process", client=TestClient(fake_app(pattern=cfg.pattern))
+        )
+    elif moonraker:
+        client = MoonrakerClient(moonraker)
+    typer.echo(f"AlignCam demo on http://{host}:{port}")
+    uvicorn.run(create_app(cfg, client), host=host, port=port, log_level="warning")
+
+
+@app.command("fake-moonraker")
+def fake_moonraker(port: int = 7125, print_seconds: float = 3.0) -> None:
+    """Run a fake Moonraker with hidden tool errors, for development without a printer."""
+    import uvicorn
+
+    from aligncam.printer.fake_moonraker import FakePrinterState, create_app
+
+    st = FakePrinterState(print_seconds=print_seconds)
+    typer.echo(f"fake Moonraker on http://127.0.0.1:{port} (hidden errors: {st.hidden_offsets_mm})")
+    uvicorn.run(create_app(st), host="127.0.0.1", port=port, log_level="warning")
+
+
 if __name__ == "__main__":
     app()
