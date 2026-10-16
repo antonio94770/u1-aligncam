@@ -13,5 +13,3 @@ htmlcov/
 out/
 *.log
 
-# Local tool settings
-.claude/
