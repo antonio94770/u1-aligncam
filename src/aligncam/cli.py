@@ -38,7 +38,11 @@ def pattern(
     out.with_suffix(".gcode").write_text(generate_gcode(layout, cfg.printer), encoding="utf-8")
     out.with_suffix(".svg").write_text(layout_svg(layout, cfg.printer), encoding="utf-8")
     x0, y0, x1, y1 = layout.bbox()
-    typer.echo(f"pattern {x1 - x0:.1f} x {y1 - y0:.1f} mm -> {out}.gcode, {out}.svg")
+    bx0, by0, bx1, by1 = layout.bed_bbox()
+    typer.echo(
+        f"pattern {x1 - x0:.1f} x {y1 - y0:.1f} mm, rotated {cfg.pattern.rotation_deg} deg, "
+        f"on bed X {bx0:.1f}..{bx1:.1f} Y {by0:.1f}..{by1:.1f} -> {out}.gcode, {out}.svg"
+    )
 
 
 @app.command()

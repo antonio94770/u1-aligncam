@@ -61,5 +61,7 @@ def run_calibration(
     img = decode_image(client.snapshot(cfg.camera.snapshot_url))
     progress("measuring")
     m = measure_image(img, layout, cfg.measure, cfg.camera)
-    proposal = build_proposal(m, cfg.printer.offset_correction_sign)
+    proposal = build_proposal(
+        m, cfg.printer.offset_correction_sign, pattern_rotation_deg=cfg.pattern.rotation_deg
+    )
     return WorkflowResult(img, m, proposal, layout)

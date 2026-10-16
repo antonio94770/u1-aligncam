@@ -16,6 +16,7 @@ import numpy as np
 
 from aligncam.bench.sweeps import GRID_BLUR, GRID_GSD, SWEEPS
 from aligncam.sim.camera import distance_for_gsd
+from aligncam.sim.u1 import PLACEMENTS
 
 TARGET_MM = 0.04
 """Error above which an *accepted* measurement counts as unsafe."""
@@ -296,6 +297,44 @@ def colors_table(rows: list[dict]) -> str:
     return "\n".join(lines)
 
 
+HEIGHT_BINS_MM = ((50.0, 100.0), (100.0, 150.0), (150.0, 200.0))
+
+
+def _top_reason(rows: list[dict]) -> str:
+    reasons: dict[str, int] = defaultdict(int)
+    for r in rows:
+        for x in filter(None, r["reasons"].split("|")):
+            reasons[x] += 1
+    return max(reasons, key=reasons.get) if reasons else "-"
+
+
+def u1_table(rows: list[dict], sweep: str = "u1") -> str:
+    """Hypothetical U1 side camera: one row per pattern placement."""
+    groups = group(rows, sweep)
+    lines = [
+        "| Pattern placement | n | pattern in frame | accepted | accepted, in frame "
+        "| P95 abs err (um) | unsafe | median GSD (mm/px) | median view angle "
+        "| accepted, camera 50-100 / 100-150 / 150-200 mm high | most common rejection |",
+        "|---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|",
+    ]
+    for k, g in groups.items():
+        s = stats(g)
+        inside = [r for r in g if int(r.get("in_frame") or 0)]
+        acc_in = "-" if not inside else _pct(stats(inside).accepted)
+        by_h = []
+        for lo, hi in HEIGHT_BINS_MM:
+            sub = [r for r in g if lo <= float(r["cam_height_mm"]) < hi]
+            by_h.append("-" if not sub else f"{stats(sub).accepted * 100:.0f} %")
+        lines.append(
+            f"| {PLACEMENTS[int(k)].name} | {s.n} | {_pct(len(inside) / s.n)} | "
+            f"{_pct(s.accepted)} | {acc_in} | {_um(s.p95_abs_mm)} | {_pct(s.unsafe)} | "
+            f"{np.median([r['gsd'] for r in g]):.2f} | "
+            f"{np.median([float(r['view_deg']) for r in g]):.0f} deg | "
+            f"{' / '.join(by_h)} | {_top_reason(g)} |"
+        )
+    return "\n".join(lines)
+
+
 def build_report(results: Path, docs_dir: Path, image_dir: Path) -> str:
     rows = load(results)
     image_dir.mkdir(parents=True, exist_ok=True)
@@ -356,6 +395,30 @@ def build_report(results: Path, docs_dir: Path, image_dir: Path) -> str:
             f"![{name}]({rel}/bench_{name}.png)",
             "",
             stats_table(group(rows, name), sw.label.split(" (")[0]),
+            "",
+        ]
+    if any(r["sweep"] == "u1" for r in rows):
+        md += [
+            "## Hypothetical U1 side camera",
+            "",
+            "Public sources place the U1 camera (1920 x 1080) on the right inner side",
+            "panel (see [u1-camera.md](u1-camera.md)). Its height, field of view and",
+            "aim are unknown, so every case draws them at random: height above the bed",
+            "50-200 mm, 20-50 mm beyond the right edge of a 270 mm bed, 60-210 mm along",
+            "the panel, HFOV 80-120 deg, aimed at the bed centre, uncorrected k1 in",
+            "[-0.15, 0] around the true optical axis. Parts of the pattern outside the",
+            "1920 x 1080 frame are not rendered. All other nuisances are drawn as above.",
+            "GSD and view angle are taken at the pattern centre. *Pattern in frame* =",
+            "the whole pattern falls inside the 1920 x 1080 sensor.",
+            "",
+            "Uncorrected lens distortion (no camera calibration):",
+            "",
+            u1_table(rows, "u1"),
+            "",
+            "Calibrated lens (k1 = 0, i.e. a perfect undistortion with",
+            "`camera_matrix`/`dist_coeffs`):",
+            "",
+            u1_table(rows, "u1_cal"),
             "",
         ]
     md += [

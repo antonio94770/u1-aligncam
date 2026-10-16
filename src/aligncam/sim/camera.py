@@ -46,6 +46,17 @@ class PinholeCamera:
         sy = np.hypot(*(p[2] - p[0]))
         return float(2.0 * h / (sx + sy))
 
+    def max_gsd_at(self, xy: tuple[float, float]) -> float:
+        """Coarser of the X and Y ground sampling distances around a bed point."""
+        h = 1.0
+        p = self.project(np.array([xy, (xy[0] + h, xy[1]), (xy[0], xy[1] + h)]))
+        return float(h / min(np.hypot(*(p[1] - p[0])), np.hypot(*(p[2] - p[0]))))
+
+    def view_angle_deg(self, xy: tuple[float, float]) -> float:
+        """Angle between the line of sight to a bed point and the vertical."""
+        ray = np.array([xy[0], xy[1], 0.0]) + self.R.T @ self.t
+        return float(np.degrees(np.arccos(-ray[2] / np.linalg.norm(ray))))
+
 
 def look_at(position: np.ndarray, target: np.ndarray, image_up_world: np.ndarray) -> np.ndarray:
     """World-to-camera rotation for a camera at ``position`` looking at ``target``.
@@ -108,6 +119,57 @@ def camera_for_gsd(
     )
     up = rz @ up
     R = look_at(pos, tgt, up)
+    return _cropped_camera(focal_px, R, pos, roi_mm, margin_px, k1)
+
+
+def camera_from_pose(
+    position_mm: tuple[float, float, float],
+    aim_mm: tuple[float, float],
+    hfov_deg: float,
+    roi_mm: tuple[float, float, float, float],
+    width_px: int = 1920,
+    height_px: int = 1080,
+    roll_deg: float = 0.0,
+    margin_px: int = 24,
+    k1: float = 0.0,
+) -> PinholeCamera:
+    """Physical camera at ``position_mm`` (pattern frame, z above the bed) aimed at
+    ``aim_mm`` on the bed, with a ``width_px`` x ``height_px`` sensor and horizontal
+    FOV ``hfov_deg``.
+
+    The image is cropped around ``roi_mm`` as in :func:`camera_for_gsd`; the
+    principal point and the distortion centre stay on the true optical axis, so a
+    pattern far from the image centre sees the distortion of the image edge.
+    """
+    pos = np.asarray(position_mm, dtype=float)
+    tgt = np.array([aim_mm[0], aim_mm[1], 0.0])
+    view = tgt - pos
+    # Image up = world up (horizon level), unless the camera looks straight down.
+    horizontal = np.hypot(view[0], view[1]) > 1e-6 * np.linalg.norm(view)
+    up = np.array([0.0, 0.0, 1.0]) if horizontal else np.array([0.0, 1.0, 0.0])
+    R = look_at(pos, tgt, up)
+    roll = math.radians(roll_deg)
+    rz = np.array(
+        [[math.cos(roll), -math.sin(roll), 0], [math.sin(roll), math.cos(roll), 0], [0, 0, 1]]
+    )
+    focal_px = (width_px / 2.0) / math.tan(math.radians(hfov_deg) / 2.0)
+    return _cropped_camera(
+        focal_px, rz @ R, pos, roi_mm, margin_px, k1, sensor_px=(width_px, height_px)
+    )
+
+
+def _cropped_camera(
+    focal_px: float,
+    R: np.ndarray,
+    pos: np.ndarray,
+    roi_mm: tuple[float, float, float, float],
+    margin_px: int,
+    k1: float,
+    sensor_px: tuple[int, int] | None = None,
+) -> PinholeCamera:
+    """Pinhole camera cropped to ``roi_mm``. With ``sensor_px`` (principal point at the
+    sensor centre) the crop is also clipped to the sensor, so whatever falls outside
+    the real frame is not rendered (clipping uses undistorted coordinates)."""
     t = -R @ pos
     K = np.array([[focal_px, 0, 0], [0, focal_px, 0], [0, 0, 1.0]])
     probe = PinholeCamera(K, R, t, (1, 1))
@@ -115,9 +177,12 @@ def camera_for_gsd(
     corners = probe.project(np.array([[x0, y0], [x1, y0], [x1, y1], [x0, y1]]))
     lo = corners.min(axis=0) - margin_px
     hi = corners.max(axis=0) + margin_px
+    if sensor_px is not None:
+        half = np.array(sensor_px, dtype=float) / 2.0
+        lo = np.clip(lo, -half, half - 8)
+        hi = np.clip(hi, lo + 8, half)
     K[0, 2], K[1, 2] = -lo[0], -lo[1]
     size = (int(math.ceil(hi[0] - lo[0])), int(math.ceil(hi[1] - lo[1])))
-    # OpenCV radial model on normalised coordinates (x / f), centred on the optical
-    # axis, which goes through ``target``.
+    # OpenCV radial model on normalised coordinates (x / f), centred on the optical axis.
     dist = None if k1 == 0 else np.array([k1, 0.0, 0.0, 0.0, 0.0])
     return PinholeCamera(K, R, t, size, dist)

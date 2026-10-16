@@ -10,7 +10,8 @@ image edges worse than these numbers, so treat them as optimistic.
 
 For each bed point the local GSD is computed from the projection Jacobian along bed X
 and bed Y, and the coarser of the two is reported, together with the viewing angle from
-the vertical (the benchmark rejects most images beyond ~45 deg).
+the vertical (the benchmark rejects most images beyond ~45 deg). The rendered version of these
+poses, with the measurement in the loop, is the "u1" case of ``aligncam bench``.
 """
 
 from __future__ import annotations
@@ -21,9 +22,9 @@ import math
 import numpy as np
 
 from aligncam.sim.camera import look_at
+from aligncam.sim.u1 import BED_MM
 
 WIDTH_PX, HEIGHT_PX = 1920, 1080
-BED_MM = 270.0  # TO VERIFY ON HARDWARE (published build volume, not measured plate area)
 
 
 def local_gsd(cam_pos, aim, hfov_deg, point_xy, step_mm=0.5):

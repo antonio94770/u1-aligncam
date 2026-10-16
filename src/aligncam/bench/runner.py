@@ -15,6 +15,8 @@ from aligncam.config import MeasureConfig
 from aligncam.geometry import build_layout
 from aligncam.measure import measure_image
 from aligncam.sim import simulate
+from aligncam.sim.scenario import pattern_in_frame
+from aligncam.sim.u1 import PLACEMENTS, random_side_pose
 
 FIELDS = [
     "sweep",
@@ -33,16 +35,30 @@ FIELDS = [
     "tilt",
     "bed",
     "colors",
+    "view_deg",
+    "cam_height_mm",
+    "hfov_deg",
+    "in_frame",
 ]
 
 
 def run_case(args: tuple) -> list[dict]:
     sweep, value, fixed, seed = args
     names = fixed.pop("_names", None)
+    placement = fixed.pop("placement", None)
     rng = np.random.default_rng(seed)
     sc = random_scenario(rng, seed, **fixed)
-    layout = build_layout()
-    img = simulate(sc, layout).image
+    if placement is None:
+        layout = build_layout()
+    else:
+        # Hypothetical U1 side camera: the pose replaces gsd/tilt (see aligncam.sim.u1).
+        layout = build_layout(PLACEMENTS[int(placement)].pattern_config())
+        sc = sc.model_copy(update={"pose": random_side_pose(rng)})
+    res = simulate(sc, layout)
+    img = res.image
+    gsd = sc.gsd_mm_per_px if sc.pose is None else res.camera.gsd_at((0.0, 0.0))
+    view = sc.tilt_deg if sc.pose is None else res.camera.view_angle_deg((0.0, 0.0))
+    in_frame = sc.pose is None or pattern_in_frame(res.camera, layout, sc.pose)
     m = measure_image(img, layout, MeasureConfig())
     rows = []
     for t, to in m.tools.items():
@@ -64,10 +80,14 @@ def run_case(args: tuple) -> list[dict]:
                     "sigma_mm": "" if sig is None else sig,
                     "accepted": int(to.status == "ok"),
                     "reasons": "|".join(str(r) for r in to.reasons),
-                    "gsd": sc.gsd_mm_per_px,
+                    "gsd": gsd,
                     "tilt": sc.tilt_deg,
                     "bed": "" if names is None else names[0],
                     "colors": "" if names is None else "/".join(str(n) for n in names[1:]),
+                    "view_deg": view,
+                    "cam_height_mm": "" if sc.pose is None else sc.pose.position_bed_mm[2],
+                    "hfov_deg": "" if sc.pose is None else sc.pose.hfov_deg,
+                    "in_frame": int(in_frame),
                 }
             )
     return rows

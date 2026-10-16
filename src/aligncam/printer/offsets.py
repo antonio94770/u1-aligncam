@@ -20,6 +20,9 @@ from abc import ABC, abstractmethod
 from dataclasses import asdict, dataclass, field
 from datetime import UTC, datetime
 
+import numpy as np
+
+from aligncam.geometry import rotation_matrix
 from aligncam.measure.estimate import Measurement
 
 
@@ -31,6 +34,7 @@ class ConfirmationError(RuntimeError):
 class OffsetCorrection:
     tool: int
     measured_dx_mm: float
+    """Measured error in printer (bed) axes, already rotated from pattern axes."""
     measured_dy_mm: float
     sigma_x_mm: float
     sigma_y_mm: float
@@ -82,8 +86,18 @@ class ApplyResult:
 
 
 def build_proposal(
-    m: Measurement, sign: int = -1, max_correction_mm: float = 0.3
+    m: Measurement,
+    sign: int = -1,
+    max_correction_mm: float = 0.3,
+    pattern_rotation_deg: int = 0,
 ) -> OffsetProposal:
+    """Proposal in printer axes.
+
+    The measurement is in pattern axes. ``pattern_rotation_deg`` (the layout's
+    ``rotation_deg``) turns it into bed X/Y; with a multiple of 90 degrees the two
+    sigmas are simply swapped or kept.
+    """
+    rot = rotation_matrix(pattern_rotation_deg)
     corrections = []
     skipped: dict[int, list[str]] = {}
     for t in sorted(m.tools):
@@ -94,17 +108,19 @@ def build_proposal(
         if max(abs(to.dx_mm), abs(to.dy_mm)) > max_correction_mm:
             skipped[t] = [f"correction larger than {max_correction_mm} mm: check manually"]
             continue
-        sx, sy = to.sigma_x_mm or 0.0, to.sigma_y_mm or 0.0
-        significant = abs(to.dx_mm) > 2 * sx or abs(to.dy_mm) > 2 * sy
+        dx, dy = (rot @ np.array([to.dx_mm, to.dy_mm])).tolist()
+        sx, sy = np.sqrt(rot**2 @ np.array([to.sigma_x_mm or 0.0, to.sigma_y_mm or 0.0]) ** 2)
+        sx, sy = float(sx), float(sy)
+        significant = abs(dx) > 2 * sx or abs(dy) > 2 * sy
         corrections.append(
             OffsetCorrection(
                 tool=t,
-                measured_dx_mm=round(to.dx_mm, 4),
-                measured_dy_mm=round(to.dy_mm, 4),
+                measured_dx_mm=round(dx, 4),
+                measured_dy_mm=round(dy, 4),
                 sigma_x_mm=round(sx, 4),
                 sigma_y_mm=round(sy, 4),
-                delta_x_mm=round(sign * to.dx_mm, 4),
-                delta_y_mm=round(sign * to.dy_mm, 4),
+                delta_x_mm=round(sign * dx, 4),
+                delta_y_mm=round(sign * dy, 4),
                 significant=significant,
             )
         )

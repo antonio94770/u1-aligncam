@@ -15,6 +15,7 @@ import numpy as np
 from aligncam.sim.degrade import Degradation
 from aligncam.sim.render import Appearance
 from aligncam.sim.scenario import Scenario, random_offsets
+from aligncam.sim.u1 import PLACEMENTS
 
 TOOLS = [1, 2, 3]
 MAX_OFFSET_MM = 0.3
@@ -143,6 +144,13 @@ def sweep_cases(n_per_point: int, base_seed: int = 0):
         for b in GRID_BLUR:
             for _ in range(max(n_per_point // 2, 1)):
                 yield "grid", float(g), {"gsd": g, "blur": b}, seed
+                seed += 1
+    # Hypothetical U1 side camera, with uncorrected distortion and with a calibrated
+    # lens (k1 = 0 stands for a perfect undistortion).
+    for name, extra in (("u1", {}), ("u1_cal", {"k1": 0.0})):
+        for i in range(len(PLACEMENTS)):
+            for _ in range(n_per_point):
+                yield name, float(i), {"placement": i, **extra}, seed
                 seed += 1
     colors_rng = np.random.default_rng(base_seed + 99)
     names = list(FILAMENTS)

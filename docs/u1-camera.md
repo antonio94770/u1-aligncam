@@ -1,6 +1,6 @@
 # The U1 chamber camera: what is public, and what it implies
 
-Desk research only (October 2026). Nothing here was measured on a real U1. Every
+Desk research and simulation only (October 2026). Nothing here was measured on a real U1. Every
 figure that is not quoted from a source below is an **estimate from a pinhole model**
 and is labelled as such. The settings that follow from it remain
 `TO VERIFY ON HARDWARE`.
@@ -49,26 +49,49 @@ viewing angle from the vertical:
 
 *Pinhole estimate, not a measurement.*
 
+### Rendered with the measurement in the loop
+
+The `u1` and `u1_cal` cases of `aligncam bench` render these poses (random height
+50-200 mm, clearance 20-50 mm, position along the panel, HFOV 80-120 deg, aimed at
+the bed centre) and run the full measurement. Synthetic results, 360 tool-axis
+measurements per row; full tables in [benchmark.md](benchmark.md):
+
+| Placement | Accepted, no lens calibration | Accepted, calibrated lens | ... camera >= 100 mm high | P95 error | Pattern fully in frame |
+|---|---:|---:|---:|---:|---:|
+| Bed centre, 0 deg | 6 % | 10 % | 6-20 % | 10-11 um | 100 % |
+| Bed centre, 90 deg | 17 % | 19 % | 17-33 % | 16-22 um | 100 % |
+| **70 mm from the camera edge, 90 deg** | 17 % | **53 %** | **71-75 %** | 16-18 um | 67-75 % |
+| 50 mm from the camera edge, 90 deg | 9 % | 28 % | 39-40 % | 20-27 um | 28-33 % |
+
+Across all of them, accepted measurements with an error above 40 um: 0-0.3 %.
+Rejections are dominated by `low_snr` (coarse GSD, blur) at the bed centre and by
+`no_fiducials` (pattern partly outside the frame) near the edge.
+
 Conclusions, all of them to be confirmed on a real printer:
 
 1. **At the bed centre the U1 camera is very likely too coarse** (> 0.25 mm/px in
-   every scenario tried, and too oblique in most). The current default
-   `center_on_bed_mm: [135, 135]` is probably wrong for the U1.
-2. **Near the camera side the target is plausible.** A pattern 30-70 mm from the
-   right edge reaches 0.1-0.3 mm/px in most scenarios, i.e. inside or close to the
-   0.15-0.25 mm/px that the benchmark accepts.
-3. **The pattern should run parallel to the camera panel.** The current layout is
-   about 160 x 75 mm with its long side along X, which points it away from a
-   camera on the right. Rotated by 90 deg, the far end of the pattern stays close
-   to the camera, and its centre can sit about 40-70 mm from the right edge.
-   The layout cannot be rotated yet.
-4. **Focus is an open risk.** A fixed-focus wide-angle module set for the whole
+   every scenario tried, too oblique in most, at most 20 % accepted in the
+   rendered benchmark). The default `center_on_bed_mm: [135, 135]` is wrong for
+   the U1.
+2. **Recommended starting point: rotated 90 deg, 70 mm from the camera edge**
+   ([config/placements/u1-side.yaml](../config/placements/u1-side.yaml)). The
+   pattern runs parallel to the panel, so its far end stays close to the camera.
+   Closer (50 mm) is finer but often leaves the frame.
+3. **Lens calibration is required on the U1.** Away from the bed centre the
+   pattern sits near the edge of a wide-angle image, where uncorrected distortion
+   is largest: 17 % accepted without calibration, 53 % with it. A checkerboard
+   calibration routine is not part of the tool yet.
+4. **The real aim and FOV decide whether the pattern is in the frame.** Every
+   simulated camera is aimed at the bed centre; a quarter to a third of the
+   poses do not see the whole pattern at 70 mm. The placement must be tuned on
+   a real snapshot.
+5. **Focus is an open risk.** A fixed-focus wide-angle module set for the whole
    chamber may be soft at 50-100 mm. The benchmark tolerates blur up to about
    2 px sigma.
-5. **The toolhead must be parked away** from the line of sight before the photo.
-6. If the bed moves in Z (TO VERIFY ON HARDWARE), the bed height at photo time is
+6. **The toolhead must be parked away** from the line of sight before the photo.
+7. If the bed moves in Z (TO VERIFY ON HARDWARE), the bed height at photo time is
    a free parameter that changes the viewing angle and the distance.
-7. If all of this fails, the plan-B nozzle camera
+8. If all of this fails, the plan-B nozzle camera
    ([plan-b-nozzle-camera.md](plan-b-nozzle-camera.md)) does not depend on the
    chamber camera at all.
 

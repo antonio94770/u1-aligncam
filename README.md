@@ -25,7 +25,7 @@ by itself.
   reading and an edge-based coarse position.
 - **Rejects instead of guessing**: thirteen reason codes, an uncertainty for every
   number, and a T0-vs-T0 control cell.
-- A **realistic simulator and a 4290-image benchmark** that answers "which camera
+- A **realistic simulator and a 4770-image benchmark** that answers "which camera
   is good enough?", and that found three real design flaws before any hardware
   existed.
 - **Safe by design**: the only offset writer is a dry run, and its confirmation is
@@ -67,7 +67,7 @@ offsets. True errors were T1 (+120, -80), T2 (-200, +50), T3 (+40, +150) um.*
 
 ## Benchmark results (synthetic data only)
 
-4290 synthetic photos and 25 740 tool-axis measurements, with random true errors
+4770 synthetic photos and 28 620 tool-axis measurements, with random true errors
 of +/-0.3 mm and randomised print, lighting, camera and compression
 imperfections. Full tables and every plot:
 [docs/benchmark.md](docs/benchmark.md). Reproduce with
@@ -96,9 +96,13 @@ pattern; tilted views need more resolution):
 
 *Maximum camera-to-pattern distance for 0.15 mm/px.* Public sources give the U1
 camera as 1080p, mounted on the right inner side panel; its lens and exact pose are
-not published. A pinhole estimate ([docs/u1-camera.md](docs/u1-camera.md), not a
-measurement) suggests it is too coarse at the bed centre but plausible for a
-pattern placed near the camera side. If it turns out too coarse, the
+not published. Simulating that side camera over a range of plausible poses
+([docs/u1-camera.md](docs/u1-camera.md), synthetic): at the bed centre at most 20 %
+of measurements pass. With the pattern rotated 90 deg, 70 mm from the camera-side
+edge ([config/placements/u1-side.yaml](config/placements/u1-side.yaml)) and a
+calibrated lens, 53 % pass (71-75 % if the camera sits 100 mm or more above the
+bed), P95 16 um, none accepted with an error above 40 um. Without lens calibration
+it drops to 17 %, so on the U1 calibration is required. If it turns out too coarse, the
 plan-B nozzle camera ([docs/plan-b-nozzle-camera.md](docs/plan-b-nozzle-camera.md))
 avoids the problem.
 
@@ -106,13 +110,13 @@ avoids the problem.
 |---|---|---|
 | Ground sampling distance | 0.25 mm/px (P95 18 um, 92 % accepted) | rejected |
 | Blur | 2 px sigma (P95 18 um) | rejected |
-| Camera tilt | 30 deg; 45 deg with half the measurements rejected | rejected |
+| Camera tilt | 55 deg (P95 19 um); 65 deg with a quarter rejected | rejected |
 | Uncorrected lens distortion | k1 = -0.1 (typical webcam); -0.2 with half rejected | rejected; calibrate the camera |
 | Sensor noise | the whole tested range (up to 5 % of full scale) | - |
 | Filament/plate contrast | 0.35 of nominal (1.4 % unsafe at 0.35) | rejected |
 | Directional lighting | 0.3 (P95 18 um); 0.5: P95 27 um, 0.6 % unsafe | **main open risk** |
 
-Across all 25 740 measurements, including the deliberately hostile sweeps, the
+Across all 28 620 measurements, including the deliberately hostile sweeps, the
 rate of *accepted but wrong* results (|error| > 40 um) is **0.06 %**. Under
 nominal conditions, 2-sigma coverage of the reported uncertainty is 95-98 %.
 
@@ -124,10 +128,13 @@ nominal conditions, 2-sigma coverage of the reported uncertainty is 95-98 %.
 - **Wrong period.** A centroid-based coarse position, biased by uneven light, once
   let errors of about 0.6 mm (half a pitch) through, with phase and vernier
   agreeing. It was replaced by an edge-based check that **rejects** instead.
+- **Oblique views** (a camera on a side panel) make near fiducials several times
+  larger than far ones. The fiducial search used to reject such images outright;
+  with a perspective-tolerant search, tilts of 55 deg are fully accepted.
 - **Filaments lighter and darker than the plate**, under directional light, shift
   in opposite directions. This bias is invisible to every internal check. It is now
   rejected (`polarity_mismatch`, `shading_sensitive`). On a gold-coloured plate
-  with random filaments, this means only 6 % of measurements pass, while 0.7 % are
+  with random filaments, this means only 8 % of measurements pass, while 0.5 % are
   still wrong. The practical advice: calibrate with filaments that contrast
   strongly with the plate and are all on the same side of it (all lighter or all
   darker).

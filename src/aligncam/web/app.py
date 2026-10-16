@@ -58,7 +58,9 @@ def create_app(cfg: AppConfig | None = None, moonraker: MoonrakerClient | None =
     app = FastAPI(title="U1 AlignCam demo")
 
     def respond(img: np.ndarray, m: Measurement, source: str, truth: dict | None = None) -> dict:
-        proposal = build_proposal(m, cfg.printer.offset_correction_sign)
+        proposal = build_proposal(
+            m, cfg.printer.offset_correction_sign, pattern_rotation_deg=cfg.pattern.rotation_deg
+        )
         proposals[proposal.digest()] = proposal
         return {
             "source": source,

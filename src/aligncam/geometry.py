@@ -177,8 +177,23 @@ class Layout:
         pts = [d.center for d in self.fiducials] + [self.orientation_dot.center]
         return np.array(pts, dtype=float)
 
+    def rotation(self) -> np.ndarray:
+        """2x2 rotation from pattern axes to bed (printer) axes."""
+        return rotation_matrix(self.config.rotation_deg)
+
     def to_bed(self, xy: np.ndarray | XY) -> np.ndarray:
-        return np.asarray(xy, dtype=float) + np.asarray(self.config.center_on_bed_mm)
+        """Pattern-frame points (..., 2) to bed coordinates."""
+        return self.vector_to_bed(xy) + np.asarray(self.config.center_on_bed_mm)
+
+    def vector_to_bed(self, v: np.ndarray | XY) -> np.ndarray:
+        """Pattern-frame displacements (..., 2), e.g. a measured tool offset, in bed axes."""
+        return np.asarray(v, dtype=float) @ self.rotation().T
+
+    def bed_bbox(self) -> tuple[float, float, float, float]:
+        """Bounding box of everything that gets printed, in bed coordinates."""
+        x0, y0, x1, y1 = self.bbox()
+        c = self.to_bed(np.array([(x0, y0), (x1, y0), (x1, y1), (x0, y1)]))
+        return (c[:, 0].min(), c[:, 1].min(), c[:, 0].max(), c[:, 1].max())
 
     def toolpaths(self, tool: int) -> list[Path]:
         """Every extrusion path of one tool, in print order."""
@@ -191,6 +206,12 @@ class Layout:
                 if grating.tool == tool:
                     paths += [Path(tool, seg, "grating") for seg in grating.segments()]
         return paths
+
+
+def rotation_matrix(deg: float) -> np.ndarray:
+    """Counter-clockwise 2x2 rotation, exact for multiples of 90 degrees."""
+    c, s = round(math.cos(math.radians(deg)), 12), round(math.sin(math.radians(deg)), 12)
+    return np.array([[c, -s], [s, c]])
 
 
 def _n_lines(length: float, pitch: float) -> int:

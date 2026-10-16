@@ -12,9 +12,19 @@ from pydantic import BaseModel, Field
 
 from aligncam.config import PatternConfig
 from aligncam.geometry import Layout, build_layout
-from aligncam.sim.camera import PinholeCamera, camera_for_gsd
+from aligncam.sim.camera import PinholeCamera, camera_for_gsd, camera_from_pose
 from aligncam.sim.degrade import Degradation, apply_degradation, project_texture
 from aligncam.sim.render import Appearance, render_texture
+
+
+class CameraPose(BaseModel):
+    """A physical camera in bed coordinates (mm, z above the bed surface)."""
+
+    position_bed_mm: tuple[float, float, float]
+    aim_bed_mm: tuple[float, float]
+    hfov_deg: float = 100.0
+    width_px: int = 1920
+    height_px: int = 1080
 
 
 class Scenario(BaseModel):
@@ -34,6 +44,10 @@ class Scenario(BaseModel):
     k1: float = 0.0
     """Radial distortion, OpenCV k1 on normalised coordinates, optical axis through the
     pattern centre. Uncalibrated wide-angle webcams are typically around -0.1 .. -0.3."""
+    pose: CameraPose | None = None
+    """Physical camera pose. When set, it replaces gsd/tilt/azimuth/distance: the GSD
+    and viewing angle follow from the pose, the FOV and where the layout puts the
+    pattern on the bed (``center_on_bed_mm``, ``rotation_deg``)."""
     texture_px_per_mm: float | None = None
     """None = choose automatically from the GSD."""
     appearance: Appearance = Field(default_factory=Appearance)
@@ -79,22 +93,54 @@ def simulate(scenario: Scenario, layout: Layout | None = None) -> SimResult:
     layout = layout or build_layout(PatternConfig())
     rng = np.random.default_rng(scenario.seed)
     app = scenario.appearance
-    density = scenario.texture_px_per_mm or auto_texture_density(scenario.gsd_mm_per_px)
+    cam = scene_camera(scenario, layout)
+    gsd = scenario.gsd_mm_per_px if scenario.pose is None else cam.gsd_at((0.0, 0.0))
+    density = scenario.texture_px_per_mm or auto_texture_density(gsd)
     offsets = {int(k): tuple(v) for k, v in scenario.offsets_mm.items()}
     tex = render_texture(layout, offsets, app, rng, px_per_mm=density)
-    x0, y0, x1, y1 = layout.bbox()
-    cam = camera_for_gsd(
-        scenario.gsd_mm_per_px,
-        (x0 - 6, y0 - 6, x1 + 6, y1 + 6),
-        tilt_deg=scenario.tilt_deg,
-        azimuth_deg=scenario.azimuth_deg,
-        roll_deg=scenario.roll_deg,
-        k1=scenario.k1,
-        distance_mm=scenario.camera_distance_mm,
-    )
     linear = project_texture(tex, cam, np.asarray(app.bed_rgb, np.float32))
     image = apply_degradation(linear, scenario.degradation, rng)
     return SimResult(image, scenario, cam, layout)
+
+
+def scene_camera(scenario: Scenario, layout: Layout) -> PinholeCamera:
+    """The scenario's camera in the pattern frame, cropped around the pattern."""
+    x0, y0, x1, y1 = layout.bbox()
+    roi = (x0 - 6, y0 - 6, x1 + 6, y1 + 6)
+    if scenario.pose is None:
+        return camera_for_gsd(
+            scenario.gsd_mm_per_px,
+            roi,
+            tilt_deg=scenario.tilt_deg,
+            azimuth_deg=scenario.azimuth_deg,
+            roll_deg=scenario.roll_deg,
+            k1=scenario.k1,
+            distance_mm=scenario.camera_distance_mm,
+        )
+    pose = scenario.pose
+    centre = np.asarray(layout.config.center_on_bed_mm, dtype=float)
+    rot = layout.rotation()
+    # Bed -> pattern frame: inverse of Layout.to_bed (row vectors, so R^-T = R).
+    pos_xy = (np.asarray(pose.position_bed_mm[:2]) - centre) @ rot
+    aim_xy = (np.asarray(pose.aim_bed_mm) - centre) @ rot
+    return camera_from_pose(
+        (float(pos_xy[0]), float(pos_xy[1]), float(pose.position_bed_mm[2])),
+        (float(aim_xy[0]), float(aim_xy[1])),
+        pose.hfov_deg,
+        roi,
+        width_px=pose.width_px,
+        height_px=pose.height_px,
+        roll_deg=scenario.roll_deg,
+        k1=scenario.k1,
+    )
+
+
+def pattern_in_frame(camera: PinholeCamera, layout: Layout, pose: CameraPose) -> bool:
+    """Whether the whole printed pattern falls inside the sensor of a posed camera."""
+    x0, y0, x1, y1 = layout.bbox()
+    uv = camera.project(np.array([(x0, y0), (x1, y0), (x1, y1), (x0, y1)])) - camera.K[:2, 2]
+    half = np.array([pose.width_px, pose.height_px], dtype=float) / 2.0
+    return bool(np.all(np.abs(uv) <= half))
 
 
 def random_offsets(

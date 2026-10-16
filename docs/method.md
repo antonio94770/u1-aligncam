@@ -27,6 +27,18 @@ one X and one Y cell per tool, plus a **control cell** where T0 prints both halv
 Four corner disks and an orientation dot, all printed by T0, define the pattern
 frame.
 
+**Placement and rotation.** The pattern can be placed anywhere on the bed
+(`center_on_bed_mm`) and rotated by 0, 90, 180 or 270 degrees (`rotation_deg`), so
+that it sits close to a camera on a side panel with its long side along the panel
+(see [u1-camera.md](u1-camera.md)). Right angles keep every line parallel to a
+printer axis. The measurement always works in the pattern frame; the offset
+proposal rotates the result (and swaps the sigmas) back into printer X/Y.
+
+**Oblique views.** A side camera sees near fiducials several times larger than far
+ones. The fiducial search therefore allows corner disks to differ in area by up to
+8x and compares the orientation dot with its neighbouring corner rather than with
+the mean; the homography and the dot prediction still reject wrong matches.
+
 Measuring along the direction *across* the lines has a useful side effect:
 extrusion lag and ooze act *along* the line, so they barely affect the measured
 coordinate. The ends of each line, where blobs form, are excluded.

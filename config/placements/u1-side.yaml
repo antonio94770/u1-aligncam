@@ -1,0 +1,7 @@
+# Pattern placement for the U1 chamber camera on the right inner side panel.
+# Use on top of the defaults:  aligncam pattern -c config/pattern.default.yaml -c config/placements/u1-side.yaml
+# Chosen from the synthetic "u1" benchmark (docs/benchmark.md, docs/u1-camera.md),
+# not from a real printer.
+pattern:
+  center_on_bed_mm: [200.0, 135.0]   # TO VERIFY ON HARDWARE (70 mm from the camera-side edge)
+  rotation_deg: 90                   # TO VERIFY ON HARDWARE (long side along the camera panel)

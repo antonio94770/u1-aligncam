@@ -54,9 +54,16 @@ class PatternConfig(_Model):
 
     center_on_bed_mm: tuple[float, float] = (135.0, 135.0)
     """Where the pattern centre lands on the bed. TO VERIFY ON HARDWARE (bed size)."""
+    rotation_deg: int = 0
+    """Counter-clockwise rotation of the pattern on the bed: 0, 90, 180 or 270. Multiples
+    of 90 keep every grating line parallel to a printer axis. With a camera on a side
+    panel, 90 runs the long side of the pattern along the panel. TO VERIFY ON HARDWARE
+    (camera position)."""
 
     @model_validator(mode="after")
     def _check(self) -> PatternConfig:
+        if self.rotation_deg not in (0, 90, 180, 270):
+            raise ValueError("rotation_deg must be 0, 90, 180 or 270")
         if self.reference_tool in self.tools:
             raise ValueError("reference_tool must not be listed in tools")
         if not 0.5 < self.vernier_ratio <= 1.0:

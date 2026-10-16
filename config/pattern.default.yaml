@@ -17,6 +17,8 @@ pattern:
   prime_lines: true
   prime_line_length_mm: 40.0
   center_on_bed_mm: [135.0, 135.0]   # TO VERIFY ON HARDWARE (depends on bed size and camera view)
+  # Counter-clockwise, 0/90/180/270. For the U1 side camera see config/placements/u1-side.yaml.
+  rotation_deg: 0                    # TO VERIFY ON HARDWARE (camera position)
 
 measure:
   rect_px_per_mm: 20.0

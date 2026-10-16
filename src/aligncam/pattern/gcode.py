@@ -36,9 +36,8 @@ def extrusion_per_mm(line_width: float, layer_height: float, printer: PrinterCon
 
 
 def check_bounds(layout: Layout, printer: PrinterConfig) -> None:
-    x0, y0, x1, y1 = layout.bbox()
-    lo = layout.to_bed((x0, y0))
-    hi = layout.to_bed((x1, y1))
+    x0, y0, x1, y1 = layout.bed_bbox()
+    lo, hi = (x0, y0), (x1, y1)
     bx, by = printer.bed_size_mm
     if lo[0] < 0 or lo[1] < 0 or hi[0] > bx or hi[1] > by:
         raise ValueError(
@@ -105,8 +104,8 @@ def generate_gcode(layout: Layout, printer: PrinterConfig | None = None) -> str:
         "; Single layer. Every tool prints its own gratings; T0 also prints the fiducials.",
         f"; pitch {cfg.pitch_mm} mm, vernier ratio {cfg.vernier_ratio}, "
         f"line width {cfg.line_width_mm} mm, layer {cfg.layer_height_mm} mm",
-        f"; pattern centre on bed: X{cfg.center_on_bed_mm[0]} Y{cfg.center_on_bed_mm[1]}"
-        "  (TO VERIFY ON HARDWARE)",
+        f"; pattern centre on bed: X{cfg.center_on_bed_mm[0]} Y{cfg.center_on_bed_mm[1]}, "
+        f"rotated {cfg.rotation_deg} deg  (TO VERIFY ON HARDWARE)",
         "; Printer-specific blocks come from templates marked TO VERIFY ON HARDWARE.",
         "G21 ; millimetres",
         "G90 ; absolute XYZ",

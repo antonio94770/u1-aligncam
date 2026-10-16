@@ -16,7 +16,9 @@ assumption marked `TO VERIFY ON HARDWARE`.
 | End sequence | `gcode_end` | lift, heaters off |
 | **Where tool offsets are stored and how they are applied** | `printer/offsets.py` (abstract) | not implemented, by design |
 | Sign convention of the offset correction | `offset_correction_sign` | -1 |
-| Pattern position on the bed (camera field of view) | `config/pattern.default.yaml` `center_on_bed_mm` | bed centre; probably near the right edge on the U1, see [u1-camera.md](u1-camera.md) |
+| Pattern position on the bed (camera field of view) | `config/pattern.default.yaml` `center_on_bed_mm` | bed centre; `config/placements/u1-side.yaml` puts it near the right edge, see [u1-camera.md](u1-camera.md) |
+| Pattern rotation (long side along the camera panel) | `rotation_deg` | 0; 90 in `placements/u1-side.yaml` |
+| Camera height, HFOV and aim (benchmark ranges) | `src/aligncam/sim/u1.py` | 50-200 mm, 80-120 deg, bed centre |
 
 ## Camera
 
@@ -28,7 +30,7 @@ assumption marked `TO VERIFY ON HARDWARE`.
 | GSD and viewing angle where the pattern is printed | `tools/u1_camera_gsd.py` (pinhole estimate) | likely > 0.25 mm/px at bed centre |
 | Focus at 50-100 mm (fixed-focus wide-angle?) | benchmark `blur` sweep | unknown |
 | Where to park the toolhead for the photo | workflow | unknown |
-| Lens distortion (calibration) | `camera_matrix`, `dist_coeffs` | none |
+| Lens distortion (calibration) | `camera_matrix`, `dist_coeffs` | none; **required** for the U1 side view per the synthetic `u1` benchmark |
 | Camera distance to the pattern | `Scenario.camera_distance_mm` (simulator only) | 250 mm |
 | Exposure/lighting control (chamber LEDs) | not handled yet | - |
 | **How directional the chamber lighting is** | benchmark `lighting` sweep | 0-0.3 shading strength |
