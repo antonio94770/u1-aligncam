@@ -177,12 +177,16 @@ def test_cli_calibration_board(workdir):
     assert out.read_text(encoding="utf-8").startswith("<svg")
 
 
-def test_benchmark_recalibration_case_reuses_u1_scenes():
-    cases = list(sweep_cases(2))
+def test_benchmark_calibrated_cases_reuse_u1_scenes():
+    n = 2
+    cases = list(sweep_cases(n))
     u1 = [(c[1], c[3]) for c in cases if c[0] == "u1"]
-    rcal = [(c[1], c[3]) for c in cases if c[0] == "u1_rcal"]
-    assert rcal == u1
+    for name in ("u1_cal", "u1_rcal"):
+        assert [(c[1], c[3]) for c in cases if c[0] == name] == u1
     assert cases[-1][0] == "u1_rcal"
+    # The sweeps after "u1" keep the seeds they had before the pairing.
+    colors = [c[3] for c in cases if c[0] == "colors"]
+    assert colors[0] == u1[-1][1] + 1 + len(PLACEMENTS) * n
 
 
 def test_recovered_calibration_in_cropped_image_coordinates():

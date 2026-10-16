@@ -53,15 +53,15 @@ viewing angle from the vertical:
 
 The `u1` and `u1_cal` cases of `aligncam bench` render these poses (random height
 50-200 mm, clearance 20-50 mm, position along the panel, HFOV 80-120 deg, aimed at
-the bed centre) and run the full measurement. Synthetic results, 360 tool-axis
-measurements per row; full tables in [benchmark.md](benchmark.md):
+the bed centre; both cases share the same seeds and poses) and run the full
+measurement. Synthetic results, 360 tool-axis measurements per row; full tables in [benchmark.md](benchmark.md):
 
 | Placement | Accepted, no lens calibration | Accepted, calibrated lens | ... camera >= 100 mm high | P95 error | Pattern fully in frame |
 |---|---:|---:|---:|---:|---:|
-| Bed centre, 0 deg | 6 % | 10 % | 6-20 % | 10-11 um | 100 % |
-| Bed centre, 90 deg | 17 % | 19 % | 17-33 % | 16-22 um | 100 % |
-| **70 mm from the camera edge, 90 deg** | 17 % | **53 %** | **71-75 %** | 16-18 um | 67-75 % |
-| 50 mm from the camera edge, 90 deg | 9 % | 28 % | 39-40 % | 20-27 um | 28-33 % |
+| Bed centre, 0 deg | 6 % | 7 % | 7-17 % | 11-13 um | 100 % |
+| Bed centre, 90 deg | 17 % | 19 % | 20-23 % | 18-22 um | 100 % |
+| **70 mm from the camera edge, 90 deg** | 17 % | **61 %** | **62-86 %** | 17-18 um | 63-75 % |
+| 50 mm from the camera edge, 90 deg | 9 % | 33 % | 20-53 % | 14-27 um | 22-33 % |
 
 Across all of them, accepted measurements with an error above 40 um: 0-0.3 %.
 Rejections are dominated by `low_snr` (coarse GSD, blur) at the bed centre and by
@@ -79,14 +79,15 @@ Conclusions, all of them to be confirmed on a real printer:
    Closer (50 mm) is finer but often leaves the frame.
 3. **Lens calibration is required on the U1.** Away from the bed centre the
    pattern sits near the edge of a wide-angle image, where uncorrected distortion
-   is largest: 17 % accepted without calibration, 53 % with it.
+   is largest: 17 % accepted without calibration, 61 % with a perfect one on the
+   same scenes.
    `aligncam calibrate-camera` (ChArUco board, [method.md](method.md#lens-calibration-aligncam-calibrate-camera))
    recovers the lens from photos; on the same scenes as the uncorrected case, a
    calibration from 15 synthetic board photos raises acceptance to 55 %
    ([benchmark.md](benchmark.md), synthetic).
 4. **The real aim and FOV decide whether the pattern is in the frame.** Every
-   simulated camera is aimed at the bed centre; a quarter to a third of the
-   poses do not see the whole pattern at 70 mm. The placement must be tuned on
+   simulated camera is aimed at the bed centre; a quarter to more than a
+   third of the poses do not see the whole pattern at 70 mm. The placement must be tuned on
    a real snapshot.
 5. **Focus is an open risk.** A fixed-focus wide-angle module set for the whole
    chamber may be soft at 50-100 mm. The benchmark tolerates blur up to about

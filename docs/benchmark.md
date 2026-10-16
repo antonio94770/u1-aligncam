@@ -5,7 +5,7 @@
 > real Snapmaker U1. Real prints and real cameras will be worse in ways the
 > simulator does not model. See the README section *Why real hardware is needed*.
 
-- Images: **4770**, tool-axis measurements: **30060**
+- Images: **5010**, tool-axis measurements: **30060**
 - Each measurement: one tool (T1-T3), one axis, random true error in +/-0.3 mm.
 - Unless swept, every case draws random nuisance parameters: camera tilt 0-35 deg,
   uncorrected distortion k1 in [-0.15, 0], blur 0.5-1.2 px, sensor noise, JPEG
@@ -146,7 +146,10 @@ aim are unknown, so every case draws them at random: height above the bed
 50-200 mm, 20-50 mm beyond the right edge of a 270 mm bed, 60-210 mm along
 the panel, HFOV 80-120 deg, aimed at the bed centre, uncorrected k1 in
 [-0.15, 0] around the true optical axis. Parts of the pattern outside the
-1920 x 1080 frame are not rendered. All other nuisances are drawn as above.
+1920 x 1080 frame are not rendered. Where a wide FOV takes the image
+corners past the fold radius of the k1-only lens model, those pixels have
+no pre-image and are rendered as plate. All other nuisances are drawn as
+above.
 GSD and view angle are taken at the pattern centre. *Pattern in frame* =
 the whole pattern falls inside the 1920 x 1080 sensor.
 
@@ -160,23 +163,25 @@ Uncorrected lens distortion (no camera calibration):
 | 50 mm from camera edge, 90 deg | 360 | 33.3 % | 9.4 % | 15.0 % | 26.7 | 0.3 % | 0.20 | 37 deg | 4 % / 12 % / 12 % | no_fiducials |
 
 Calibrated lens (k1 = 0, i.e. a perfect undistortion with
-`camera_matrix`/`dist_coeffs`):
+`camera_matrix`/`dist_coeffs`), same scenes as the first table (same
+seeds and poses; *pattern in frame* differs because barrel distortion
+pulls the pattern towards the image centre):
 
 | Pattern placement | n | pattern in frame | accepted | accepted, in frame | P95 abs err (um) | unsafe | median GSD (mm/px) | median view angle | accepted, camera 50-100 / 100-150 / 150-200 mm high | most common rejection |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|
-| bed centre, 0 deg | 360 | 100.0 % | 10.0 % | 10.0 % | 9.5 | 0.0 % | 0.36 | 53 deg | 0 % / 6 % / 20 % | no_fiducials |
-| bed centre, 90 deg | 360 | 100.0 % | 19.4 % | 19.4 % | 16.2 | 0.0 % | 0.33 | 56 deg | 11 % / 33 % / 17 % | low_snr |
-| 70 mm from camera edge, 90 deg | 360 | 66.7 % | 53.3 % | 65.0 % | 16.4 | 0.0 % | 0.24 | 39 deg | 15 % / 75 % / 71 % | no_fiducials |
-| 50 mm from camera edge, 90 deg | 360 | 28.3 % | 28.3 % | 47.1 % | 19.6 | 0.0 % | 0.21 | 36 deg | 0 % / 39 % / 40 % | no_fiducials |
+| bed centre, 0 deg | 360 | 100.0 % | 6.7 % | 6.7 % | 13.3 | 0.0 % | 0.32 | 59 deg | 0 % / 7 % / 17 % | no_fiducials |
+| bed centre, 90 deg | 360 | 100.0 % | 19.4 % | 19.4 % | 18.5 | 0.0 % | 0.35 | 56 deg | 16 % / 23 % / 20 % | low_snr |
+| 70 mm from camera edge, 90 deg | 360 | 63.3 % | 61.1 % | 62.3 % | 16.6 | 0.0 % | 0.24 | 43 deg | 35 % / 86 % / 62 % | no_fiducials |
+| 50 mm from camera edge, 90 deg | 360 | 21.7 % | 32.8 % | 59.0 % | 14.4 | 0.0 % | 0.20 | 37 deg | 22 % / 20 % / 53 % | no_fiducials |
 
 Lens calibrated with `aligncam calibrate-camera`: the same scenes as the
 uncorrected table (same seeds), undistorted with the `camera_matrix` and
 `dist_coeffs` recovered from 15 synthetic ChArUco photos taken through the
 same lens (default k1, k2, p1, p2 model): an imperfect calibration.
 234 of 240 calibrations passed every gate (rejections: poor_coverage 5, too_few_views 3); rejected ones are still applied here.
-Compare it with the first table (paired). The calibrated-lens table draws
-other random poses, so with 60 images per placement differences of a few
-points against it are sampling noise.
+All three tables are paired: the gap between this table and the
+calibrated-lens one is what the imperfect calibration costs on the same
+scenes.
 
 | Pattern placement | n | pattern in frame | accepted | accepted, in frame | P95 abs err (um) | unsafe | median GSD (mm/px) | median view angle | accepted, camera 50-100 / 100-150 / 150-200 mm high | most common rejection |
 |---|---:|---:|---:|---:|---:|---:|---:|---:|---|---|

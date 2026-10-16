@@ -145,16 +145,16 @@ def sweep_cases(n_per_point: int, base_seed: int = 0):
             for _ in range(max(n_per_point // 2, 1)):
                 yield "grid", float(g), {"gsd": g, "blur": b}, seed
                 seed += 1
-    # Hypothetical U1 side camera, with uncorrected distortion and with a calibrated
-    # lens (k1 = 0 stands for a perfect undistortion).
+    # Hypothetical U1 side camera with uncorrected distortion.
     u1_seeds: list[tuple[int, int]] = []
-    for name, extra in (("u1", {}), ("u1_cal", {"k1": 0.0})):
-        for i in range(len(PLACEMENTS)):
-            for _ in range(n_per_point):
-                if name == "u1":
-                    u1_seeds.append((i, seed))
-                yield name, float(i), {"placement": i, **extra}, seed
-                seed += 1
+    for i in range(len(PLACEMENTS)):
+        for _ in range(n_per_point):
+            u1_seeds.append((i, seed))
+            yield "u1", float(i), {"placement": i}, seed
+            seed += 1
+    # Seeds once drawn by an unpaired "u1_cal"; still skipped so that the sweeps
+    # below keep their seeds.
+    seed += len(PLACEMENTS) * n_per_point
     colors_rng = np.random.default_rng(base_seed + 99)
     names = list(FILAMENTS)
     for _ in range(n_per_point * 4):
@@ -163,9 +163,12 @@ def sweep_cases(n_per_point: int, base_seed: int = 0):
         colors = {t: FILAMENTS[str(c)] for t, c in enumerate(picks)}
         yield "colors", 0.0, {"bed": bed, "colors": colors, "_names": [bed, *picks]}, seed
         seed += 1
-    # The same scenes as "u1", undistorted with a calibration recovered by
-    # `calibrate-camera` from synthetic board photos taken through the same lens.
-    # Last, so that adding it did not change the seeds of the other sweeps.
+    # The same scenes as "u1" (paired), with a perfectly calibrated lens (k1 = 0)
+    # and undistorted with a calibration recovered by `calibrate-camera` from
+    # synthetic board photos taken through the same lens. Last, so that adding them
+    # did not change the seeds of the other sweeps.
+    for i, s in u1_seeds:
+        yield "u1_cal", float(i), {"placement": i, "k1": 0.0}, s
     for i, s in u1_seeds:
         yield "u1_rcal", float(i), {"placement": i, "recalibrate": True}, s
 

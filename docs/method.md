@@ -154,7 +154,8 @@ synthetic board photos ([benchmark.md](benchmark.md)).
 **Limits.** A calibration is valid for one resolution and one focus setting. A lens
 wider than the polynomial model can describe would need a fisheye model, which is
 not supported. The simulator's own k1-only lens folds back near the image corners
-of the widest simulated lenses; board views there are rendered as background, so
+of the widest simulated lenses; board views and scenes there are rendered as
+background (`project_texture(mask_invalid=True)`, see `sim.scenario.simulate`), so
 some synthetic calibrations of those lenses fail `poor_coverage`.
 
 ## Quality gates (reject instead of guessing)

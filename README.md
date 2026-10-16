@@ -100,10 +100,12 @@ not published. Simulating that side camera over a range of plausible poses
 ([docs/u1-camera.md](docs/u1-camera.md), synthetic): at the bed centre at most 20 %
 of measurements pass. With the pattern rotated 90 deg, 70 mm from the camera-side
 edge ([config/placements/u1-side.yaml](config/placements/u1-side.yaml)) and a
-calibrated lens, 53 % pass (71-75 % if the camera sits 100 mm or more above the
-bed), P95 16 um, none accepted with an error above 40 um. Without lens calibration
-it drops to 17 %, so on the U1 calibration is required. If it turns out too coarse, the
-plan-B nozzle camera ([docs/plan-b-nozzle-camera.md](docs/plan-b-nozzle-camera.md))
+calibrated lens, 61 % pass (62-86 % if the camera sits 100 mm or more above the
+bed), P95 17 um, none accepted with an error above 40 um. Without lens calibration
+it drops to 17 % on the same scenes, so on the U1 calibration is required; a
+calibration recovered by `aligncam calibrate-camera` from synthetic board photos
+gives 55 %. If the camera turns out too coarse, the plan-B nozzle camera
+([docs/plan-b-nozzle-camera.md](docs/plan-b-nozzle-camera.md))
 avoids the problem.
 
 | Factor (others random) | Holds the target up to | Then |

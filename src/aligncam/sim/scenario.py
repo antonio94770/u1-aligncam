@@ -90,6 +90,27 @@ def auto_texture_density(gsd_mm_per_px: float) -> float:
 
 
 def simulate(scenario: Scenario, layout: Layout | None = None) -> SimResult:
+    """Render the scenario's photo.
+
+    Pixels beyond the fold radius of the k1-only lens model are rendered as plate
+    colour (``project_texture(mask_invalid=True)``). With k1 < 0 the model's image
+    radius r(1 + k1 r^2) peaks and turns back at r^2 = -1/(3 k1); a wide FOV puts
+    image corners past that peak (with the U1 side camera poses, about a third of
+    the uncorrected cases at the two placements near the camera, and the corners of
+    the k1 = -0.4 distortion sweep). Those pixels have no pre-image, and
+    ``cv2.undistortPoints`` returns a wrong one that paints ghost copies of the
+    scene. Masking leaves every unfolded image unchanged (in the n = 60 benchmark
+    it changed no measurement at all).
+
+    k1 is deliberately not limited to the fold-free range of the FOV instead: that
+    bound (k1 >= -4 / (27 r_corner^2), about -0.04 at HFOV 120 deg) is a limit of the
+    one-coefficient model, not of real wide-angle lenses, and would tie the drawn
+    distortion to the FOV exactly where strong barrel distortion is expected. The
+    cost is that a few pose draws fold onto the pattern itself (5 of the 240
+    uncorrected U1 scenes); part of the pattern is then missing and the measurement
+    nearly always rejects, so those cases count as failures, a pessimistic
+    artefact of the lens model.
+    """
     layout = layout or build_layout(PatternConfig())
     rng = np.random.default_rng(scenario.seed)
     app = scenario.appearance
@@ -98,7 +119,7 @@ def simulate(scenario: Scenario, layout: Layout | None = None) -> SimResult:
     density = scenario.texture_px_per_mm or auto_texture_density(gsd)
     offsets = {int(k): tuple(v) for k, v in scenario.offsets_mm.items()}
     tex = render_texture(layout, offsets, app, rng, px_per_mm=density)
-    linear = project_texture(tex, cam, np.asarray(app.bed_rgb, np.float32))
+    linear = project_texture(tex, cam, np.asarray(app.bed_rgb, np.float32), mask_invalid=True)
     image = apply_degradation(linear, scenario.degradation, rng)
     return SimResult(image, scenario, cam, layout)
 

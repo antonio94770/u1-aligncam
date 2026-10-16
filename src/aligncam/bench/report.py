@@ -356,7 +356,7 @@ def build_report(results: Path, docs_dir: Path, image_dir: Path) -> str:
         plot_sweep(rows, name, image_dir / f"bench_{name}.png")
     plot_grid(rows, image_dir / "bench_grid.png")
 
-    n_images = len({r["seed"] for r in rows})
+    n_images = len({(r["sweep"], r["seed"]) for r in rows})  # u1_* sweeps share seeds
     overall = stats(rows)
     g40 = max_gsd(rows, TARGET_MM, max_blur=1.5)
     g20 = max_gsd(rows, GOAL_MM, max_blur=1.5)
@@ -421,7 +421,10 @@ def build_report(results: Path, docs_dir: Path, image_dir: Path) -> str:
             "50-200 mm, 20-50 mm beyond the right edge of a 270 mm bed, 60-210 mm along",
             "the panel, HFOV 80-120 deg, aimed at the bed centre, uncorrected k1 in",
             "[-0.15, 0] around the true optical axis. Parts of the pattern outside the",
-            "1920 x 1080 frame are not rendered. All other nuisances are drawn as above.",
+            "1920 x 1080 frame are not rendered. Where a wide FOV takes the image",
+            "corners past the fold radius of the k1-only lens model, those pixels have",
+            "no pre-image and are rendered as plate. All other nuisances are drawn as",
+            "above.",
             "GSD and view angle are taken at the pattern centre. *Pattern in frame* =",
             "the whole pattern falls inside the 1920 x 1080 sensor.",
             "",
@@ -430,7 +433,9 @@ def build_report(results: Path, docs_dir: Path, image_dir: Path) -> str:
             u1_table(rows, "u1"),
             "",
             "Calibrated lens (k1 = 0, i.e. a perfect undistortion with",
-            "`camera_matrix`/`dist_coeffs`):",
+            "`camera_matrix`/`dist_coeffs`), same scenes as the first table (same",
+            "seeds and poses; *pattern in frame* differs because barrel distortion",
+            "pulls the pattern towards the image centre):",
             "",
             u1_table(rows, "u1_cal"),
             "",
@@ -442,9 +447,9 @@ def build_report(results: Path, docs_dir: Path, image_dir: Path) -> str:
             "`dist_coeffs` recovered from 15 synthetic ChArUco photos taken through the",
             "same lens (default k1, k2, p1, p2 model): an imperfect calibration.",
             calib_summary(rows, "u1_rcal"),
-            "Compare it with the first table (paired). The calibrated-lens table draws",
-            "other random poses, so with 60 images per placement differences of a few",
-            "points against it are sampling noise.",
+            "All three tables are paired: the gap between this table and the",
+            "calibrated-lens one is what the imperfect calibration costs on the same",
+            "scenes.",
             "",
             u1_table(rows, "u1_rcal"),
             "",

@@ -1,7 +1,12 @@
+import cv2
 import numpy as np
 
+from aligncam.geometry import build_layout
 from aligncam.sim import Scenario, simulate
 from aligncam.sim.camera import camera_for_gsd, distance_for_gsd, gsd_for_camera
+from aligncam.sim.degrade import Degradation, project_texture
+from aligncam.sim.render import render_texture
+from aligncam.sim.u1 import PLACEMENTS, side_camera_pose
 
 
 def test_deterministic(layout):
@@ -36,3 +41,30 @@ def test_fiducials_visible(layout):
     bed = np.median(img)
     for x, y in r.truth()["fiducials_px"]:
         assert img[int(round(y)), int(round(x))] > bed + 60
+
+
+def test_folded_lens_region_rendered_as_plate():
+    """Past the fold radius of a strong k1 the k1-only model has no pre-image;
+    without masking those pixels showed ghost copies of the scene."""
+    lay = build_layout(PLACEMENTS[3].pattern_config())
+    clean = Degradation(
+        blur_sigma_px=0, illumination_gradient=0, vignetting=0, exposure=1,
+        shot_noise=0, read_noise=0, jpeg_quality=None,
+    )  # fmt: skip
+    sc = Scenario(seed=0, pose=side_camera_pose(50.0, 20.0, 120.0), k1=-0.15, degradation=clean)
+    res = simulate(sc, lay)
+    cam = res.camera
+    w, h = cam.size
+    u, v = np.meshgrid(np.arange(w, dtype=np.float32), np.arange(h, dtype=np.float32))
+    pix = np.stack([u.ravel(), v.ravel()], axis=1)
+    und = cv2.undistortPoints(pix.reshape(-1, 1, 2), cam.K, cam.dist, P=cam.K).reshape(-1, 2)
+    norm = np.linalg.solve(cam.K, np.column_stack([und, np.ones(len(pix))]).T)
+    back, _ = cv2.projectPoints(norm.T.copy(), np.zeros(3), np.zeros(3), cam.K, cam.dist)
+    folded = (np.hypot(*(back.reshape(-1, 2) - pix).T) > 0.5).reshape(h, w)
+    assert folded.mean() > 0.01
+    bed_rgb = np.asarray(sc.appearance.bed_rgb, np.float32)
+    plate = np.clip(bed_rgb[::-1] * 255.0 + 0.5, 0, 255).astype(np.uint8)
+    assert np.all(res.image[folded] == plate)
+    tex = render_texture(lay, sc.offsets_mm, sc.appearance, np.random.default_rng(0), 4.0)
+    ghosts = project_texture(tex, cam, bed_rgb)
+    assert np.abs(ghosts[folded] - bed_rgb).max() > 0.1
