@@ -1,5 +1,9 @@
 # U1 AlignCam
 
+[![CI](https://github.com/antonio94770/u1-aligncam/actions/workflows/ci.yml/badge.svg)](https://github.com/antonio94770/u1-aligncam/actions/workflows/ci.yml)
+[![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
+![Python 3.11-3.13](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)
+
 **Camera-based measurement of the XY offsets between the four tool heads of the
 Snapmaker U1.** Every tool prints a small vernier/grating pattern. The chamber
 camera photographs it, and computer vision estimates where each tool actually
@@ -8,12 +12,29 @@ by itself.
 
 > **Status: pre-hardware prototype.** All results in this repository come from
 > **synthetic images** with known ground truth. Nothing has been tested on a real
-> U1 yet. See [docs/hardware-todo.md](docs/hardware-todo.md).
+> U1 yet. Every hardware assumption is marked `TO VERIFY ON HARDWARE` and listed in
+> [docs/hardware-todo.md](docs/hardware-todo.md).
 
-![Synthetic photo with detection overlay](docs/images/overlay_example.jpg)
-*Synthetic image (simulated camera, 0.15 mm/px, 20° tilt) with the detection overlay:
-fiducials (cyan circles), detected line centres of the T0 | Tn | T0 cells, per-cell
-offsets. True errors were T1 (+120, -80), T2 (-200, +50), T3 (+40, +150) um.*
+![How it works: photo, fiducials, rectified vernier cell, offsets](docs/images/pipeline.gif)
+
+**Highlights**
+
+- A **T0 | Tn | T0 vernier sandwich**, printed in one layer, that cancels lens
+  distortion and camera pose errors to first order.
+- **Sub-pixel phase fit**, cross-checked by an independent line-by-line vernier
+  reading and an edge-based coarse position.
+- **Rejects instead of guessing**: thirteen reason codes, an uncertainty for every
+  number, and a T0-vs-T0 control cell.
+- A **realistic simulator and a 4290-image benchmark** that answers "which camera
+  is good enough?", and that found three real design flaws before any hardware
+  existed.
+- **Safe by design**: the only offset writer is a dry run, and its confirmation is
+  bound to the exact proposal the user reviewed.
+
+**Contents:** [Problem](#the-problem) · [Approach](#approach-short) ·
+[Results](#benchmark-results-synthetic-data-only) · [Demo](#web-demo-and-printer-integration-mock) ·
+[Quick start](#quick-start) · [Limitations](#known-limitations) ·
+[Why real hardware is needed](#why-real-hardware-is-needed) · [Roadmap](#roadmap)
 
 ## The problem
 
@@ -37,6 +58,12 @@ that is already in the chamber.
    quality gate is **rejected** with a reason code instead of returning a number.
 
 Details and the reasons behind the design choices: [docs/method.md](docs/method.md).
+Related projects (kTAMV, TAMV, duet-tool-align, Bambu H2D): [docs/prior-art.md](docs/prior-art.md).
+
+![Synthetic photo with detection overlay](docs/images/overlay_example.jpg)
+*Synthetic image (simulated camera, 0.15 mm/px, 20° tilt) with the detection overlay:
+fiducials (cyan circles), detected line centres of the T0 | Tn | T0 cells, per-cell
+offsets. True errors were T1 (+120, -80), T2 (-200, +50), T3 (+40, +150) um.*
 
 ## Benchmark results (synthetic data only)
 
@@ -155,6 +182,11 @@ aligncam serve --fake                                    # web demo on http://12
 
 ## Web demo and printer integration (mock)
 
+![Web demo: the same print seen by coarser and coarser cameras](docs/images/demo.gif)
+*The same synthetic print seen by a camera at 0.1, 0.2, 0.3 and 0.4 mm per pixel.
+At 0.4 mm/px two tools are rejected (`low_snr`) instead of being given a wrong
+number.*
+
 `aligncam serve --fake` starts a small Fluidd-style page. It can:
 
 - render a **synthetic photo** with random tool errors (resolution, tilt and blur
@@ -179,8 +211,50 @@ Only standard Moonraker endpoints are used: `/server/files/upload`,
 `/printer/print/start`, `/printer/objects/query`, `/server/webcams/list`, and the
 webcam snapshot URL.
 
+![Confirmation dialog of the dry-run offset writer](docs/images/demo_confirm.png)
+*After "Print pattern and measure" on the fake printer: the proposed correction
+must be reviewed and confirmed explicitly, and the writer is a dry run.*
+
+## Command reference
+
+| Command | What it does |
+|---|---|
+| `aligncam pattern` | G-code of the calibration pattern + SVG preview |
+| `aligncam simulate` | synthetic photo + JSON ground truth |
+| `aligncam measure IMAGE` | offsets, uncertainty, reasons; `--out` also writes the overlay |
+| `aligncam bench` / `bench-report` | Monte Carlo benchmark, plots and `docs/benchmark.md` |
+| `aligncam serve [--fake \| --moonraker URL]` | web demo |
+| `aligncam fake-moonraker` | standalone fake Moonraker on port 7125 |
+| `python tools/make_media.py` | regenerates the GIFs and screenshots in this README |
+
+## Configuration
+
 Hardware-dependent settings live in [`config/`](config). Every unknown is marked
-`TO VERIFY ON HARDWARE`.
+`TO VERIFY ON HARDWARE`. Pass any combination with `-c`, later files win:
+
+```bash
+aligncam pattern -c config/pattern.default.yaml -c config/printer.u1.template.yaml
+```
+
+- [`pattern.default.yaml`](config/pattern.default.yaml): pattern geometry and
+  measurement gates.
+- [`printer.u1.template.yaml`](config/printer.u1.template.yaml): bed, filaments,
+  speeds, and the **Jinja2 templates** for the start, tool-change and end G-code.
+  The real U1 macros go here once known.
+- [`camera.u1.template.yaml`](config/camera.u1.template.yaml): snapshot URL and an
+  optional OpenCV camera calibration.
+
+## Development
+
+```bash
+pip install -e ".[dev]"
+ruff check . && ruff format --check .
+pytest                      # ~1 minute; the full benchmark is not part of CI
+```
+
+CI runs lint and tests on Linux and Windows, Python 3.11-3.13. Contributor and
+coding-agent guidelines (no invented U1 details, no automatic offset writes,
+synthetic results only): [AGENTS.md](AGENTS.md).
 
 ## Repository layout
 
@@ -190,18 +264,37 @@ src/aligncam/    geometry, pattern (G-code), sim (synthetic camera), measure, be
                  printer (Moonraker client, fake Moonraker, offsets), web, cli
 tests/           pytest suite, run in CI on Linux and Windows
 docs/            method, benchmark, prior art, hardware TODO list, plan B
+tools/           make_media.py (README GIFs and screenshots)
 ```
 
 ## Roadmap
+
+**Done, without hardware**
 
 - [x] M1: vernier pattern, G-code generator with configurable macro templates, image simulator
 - [x] M2: measurement pipeline with uncertainty and rejection, tests
 - [x] M3: Monte Carlo benchmark (resolution, blur, noise, contrast, tilt, distortion, lighting), plots
 - [x] M4: Moonraker client + fake Moonraker, dry-run offset writer with bound confirmation, web demo
-- [ ] M5: polish, demo GIF
+- [x] M5: documentation, demo GIFs and screenshots
 - [x] Plan B design: upward-looking nozzle camera, kTAMV-style ([docs](docs/plan-b-nozzle-camera.md))
-- [ ] On hardware: verify every `TO VERIFY ON HARDWARE` item ([list](docs/hardware-todo.md))
-- [ ] Lighting-bias calibration cell (same tool on a different-colour base, known zero offset)
+
+**Next, with a U1**
+
+1. Read the real configuration: tool-change macros, offset storage and sign,
+   camera stream, bed size. Replace every `TO VERIFY ON HARDWARE` placeholder
+   ([list](docs/hardware-todo.md)).
+2. Print the pattern with all four tools. Photograph it with the chamber camera
+   and with a reference microscope or flatbed scan as ground truth.
+3. Measure the real noise floor (control cell, repeated prints) and the lighting
+   bias. Re-calibrate the gates and the systematic floor, and publish real results
+   next to the synthetic ones, clearly labelled.
+4. Compare against the U1 built-in calibration on purposely misaligned offsets.
+5. Only then: a real `OffsetWriter` behind the same confirmation step, and a
+   Fluidd/Mainsail panel or Moonraker component so users can run it from the
+   printer UI.
+6. If the chamber camera is not good enough: implement plan B (nozzle camera).
+7. Lighting-bias calibration cell (same tool on a base of a different colour,
+   known zero offset).
 
 ## License
 

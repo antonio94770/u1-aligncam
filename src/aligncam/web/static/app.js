@@ -158,6 +158,21 @@ async function init() {
       $("btn-printer").disabled = false;
     }
   } catch (e) { /* demo still works offline */ }
+  await autorun(new URLSearchParams(location.search));
+}
+
+// Shareable/scriptable states: ?seed=3&gsd=0.2&tilt=30&blur=1&max=0.2&run=sample&view=raw
+// (run=printer uses the configured Moonraker; confirm=1 opens the confirmation dialog).
+async function autorun(q) {
+  const set = (key, id) => {
+    if (q.has(key)) { $(id).value = q.get(key); $(id).dispatchEvent(new Event("input")); }
+  };
+  set("seed", "seed"); set("max", "maxoff"); set("gsd", "gsd"); set("tilt", "tilt"); set("blur", "blur");
+  if (q.get("view") === "raw") view = "raw";
+  if (q.get("run") === "sample") await runSample();
+  if (q.get("run") === "printer" && !$("btn-printer").disabled) await runPrinter();
+  if (q.get("confirm") === "1" && canApply()) openConfirm();
+  document.body.dataset.ready = "1";
 }
 
 init();

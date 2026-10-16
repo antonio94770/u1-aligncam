@@ -94,6 +94,7 @@ table { width: 100%; border-collapse: collapse; font-variant-numeric: tabular-nu
 th { text-align: left; color: var(--text-2); font-weight: 500; font-size: 12px;
   border-bottom: 1px solid var(--line); padding: 6px 4px; }
 td { padding: 7px 4px; border-bottom: 1px solid var(--line); vertical-align: top; }
+tr.rejected td:nth-child(2), tr.rejected td:nth-child(3) { color: var(--text-2); text-decoration: line-through; }
 td .sig { color: var(--text-2); font-size: 12px; }
 td .truth { color: var(--text-2); font-size: 11px; display: block; }
 td .reasons { color: var(--bad); font-size: 11px; display: block; }
