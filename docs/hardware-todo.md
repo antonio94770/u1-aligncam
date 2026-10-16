@@ -16,7 +16,7 @@ assumption marked `TO VERIFY ON HARDWARE`.
 | End sequence | `gcode_end` | lift, heaters off |
 | **Where tool offsets are stored and how they are applied** | `printer/offsets.py` (abstract) | not implemented, by design |
 | Sign convention of the offset correction | `offset_correction_sign` | -1 |
-| Pattern position on the bed (camera field of view) | `config/pattern.default.yaml` `center_on_bed_mm` | bed centre |
+| Pattern position on the bed (camera field of view) | `config/pattern.default.yaml` `center_on_bed_mm` | bed centre; probably near the right edge on the U1, see [u1-camera.md](u1-camera.md) |
 
 ## Camera
 
@@ -24,7 +24,10 @@ assumption marked `TO VERIFY ON HARDWARE`.
 |---|---|---|
 | Snapshot URL in Moonraker | `config/camera.u1.template.yaml` `snapshot_url` | `/webcam/?action=snapshot` |
 | Resolution | `resolution_px` | 1920 x 1080 |
-| Pose: distance, tilt, field of view | used only to interpret the benchmark | unknown |
+| Pose: distance, tilt, field of view | used only to interpret the benchmark | right inner side panel (public, [u1-camera.md](u1-camera.md)); height, angle and FOV unknown |
+| GSD and viewing angle where the pattern is printed | `tools/u1_camera_gsd.py` (pinhole estimate) | likely > 0.25 mm/px at bed centre |
+| Focus at 50-100 mm (fixed-focus wide-angle?) | benchmark `blur` sweep | unknown |
+| Where to park the toolhead for the photo | workflow | unknown |
 | Lens distortion (calibration) | `camera_matrix`, `dist_coeffs` | none |
 | Camera distance to the pattern | `Scenario.camera_distance_mm` (simulator only) | 250 mm |
 | Exposure/lighting control (chamber LEDs) | not handled yet | - |

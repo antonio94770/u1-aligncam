@@ -1,7 +1,10 @@
-# Chamber camera of the Snapmaker U1. Resolution, pose and optics are UNKNOWN.
+# Chamber camera of the Snapmaker U1. Public sources (docs/u1-camera.md): 1080p MIPI
+# camera on the right inner side panel. Lens, exact pose and focus are UNKNOWN.
 camera:
+  # Stock firmware + community MJPEG bridge: "/webcam/?action=snapshot".
+  # paxx12 Extended Firmware: "/webcam/snapshot.jpg".
   snapshot_url: "/webcam/?action=snapshot"   # TO VERIFY ON HARDWARE (Moonraker webcam entry)
-  resolution_px: [1920, 1080]                # TO VERIFY ON HARDWARE
+  resolution_px: [1920, 1080]                # TO VERIFY ON HARDWARE (published as 2 MP / 1080p)
   # Optional OpenCV calibration (checkerboard). Leave null to skip undistortion.
   camera_matrix: null                        # TO VERIFY ON HARDWARE
   dist_coeffs: null                          # TO VERIFY ON HARDWARE

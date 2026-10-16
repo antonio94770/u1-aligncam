@@ -94,8 +94,11 @@ pattern; tilted views need more resolution):
 | 2592 x 1944 (5 MP) | 337 mm | 232 mm | 163 mm | 112 mm |
 | 3840 x 2160 (4K) | 499 mm | 343 mm | 242 mm | 166 mm |
 
-*Maximum camera-to-pattern distance for 0.15 mm/px.* The U1 camera's resolution,
-lens and position are TO VERIFY ON HARDWARE. If it turns out too coarse, the
+*Maximum camera-to-pattern distance for 0.15 mm/px.* Public sources give the U1
+camera as 1080p, mounted on the right inner side panel; its lens and exact pose are
+not published. A pinhole estimate ([docs/u1-camera.md](docs/u1-camera.md), not a
+measurement) suggests it is too coarse at the bed centre but plausible for a
+pattern placed near the camera side. If it turns out too coarse, the
 plan-B nozzle camera ([docs/plan-b-nozzle-camera.md](docs/plan-b-nozzle-camera.md))
 avoids the problem.
 
