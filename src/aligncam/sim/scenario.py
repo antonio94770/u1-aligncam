@@ -29,8 +29,11 @@ class Scenario(BaseModel):
     tilt_deg: float = 20.0
     azimuth_deg: float = -90.0
     roll_deg: float = 0.0
+    camera_distance_mm: float = 250.0
+    """Distance from the camera to the pattern centre. TO VERIFY ON HARDWARE."""
     k1: float = 0.0
-    """Radial distortion: relative displacement at the image corner (0.01 = 1 %)."""
+    """Radial distortion, OpenCV k1 on normalised coordinates, optical axis through the
+    pattern centre. Uncalibrated wide-angle webcams are typically around -0.1 .. -0.3."""
     texture_px_per_mm: float | None = None
     """None = choose automatically from the GSD."""
     appearance: Appearance = Field(default_factory=Appearance)
@@ -87,6 +90,7 @@ def simulate(scenario: Scenario, layout: Layout | None = None) -> SimResult:
         azimuth_deg=scenario.azimuth_deg,
         roll_deg=scenario.roll_deg,
         k1=scenario.k1,
+        distance_mm=scenario.camera_distance_mm,
     )
     linear = project_texture(tex, cam, np.asarray(app.bed_rgb, np.float32))
     image = apply_degradation(linear, scenario.degradation, rng)

@@ -33,8 +33,13 @@ class CellResult:
     """Independent line-by-line vernier reading (cross-check)."""
     coincidence_index: float | None = None
     """Vernier reading as a human would do it: which line pair coincides."""
-    reference: GratingReading | None = None
+    references: list[GratingReading] = field(default_factory=list)
+    """Readings of the two outer reference gratings."""
     measured: GratingReading | None = None
+    reference_split_mm: float | None = None
+    """Shift difference between the two reference gratings. Ideally 0; a large
+    value means a strong error field (e.g. lens distortion) across the cell, which
+    the symmetric layout cancels to first order."""
 
 
 @dataclass
@@ -98,9 +103,10 @@ class Measurement:
                     "sigma_mm": r(c.sigma_mm),
                     "vernier_offset_mm": r(c.vernier_offset_mm),
                     "coincidence_index": r(c.coincidence_index, 2),
+                    "reference_split_mm": r(c.reference_split_mm),
                     "snr": None
-                    if c.measured is None or c.reference is None
-                    else r(min(c.measured.snr, c.reference.snr), 2),
+                    if c.measured is None or not c.references
+                    else r(min(g.snr for g in [c.measured, *c.references]), 2),
                 }
                 for c in self.cells
             ],
@@ -123,9 +129,13 @@ def _cell_inside(cell: Cell, H: np.ndarray, size: tuple[int, int], lw: float, pa
     )
 
 
-def _vernier_reading(cell: Cell, ref: GratingReading, meas: GratingReading):
-    """Fit d_k = u_meas(k) - u_ref(k) = delta + k * (p_meas - p_ref) over the line pairs."""
-    ref_map = dict(zip(ref.line_indices.tolist(), ref.line_centers_u, strict=True))
+def _vernier_reading(cell: Cell, refs: list[GratingReading], meas: GratingReading):
+    """Fit d_k = u_meas(k) - u_ref(k) = delta + k * (p_meas - p_ref) over the line pairs.
+
+    u_ref(k) is the mean of the two reference gratings, line by line.
+    """
+    ref_u = np.nanmean(np.vstack([r.line_centers_u for r in refs]), axis=0)
+    ref_map = dict(zip(refs[0].line_indices.tolist(), ref_u, strict=True))
     ks, ds = [], []
     for k, um in zip(meas.line_indices.tolist(), meas.line_centers_u, strict=True):
         ur = ref_map.get(k)
@@ -153,17 +163,37 @@ def measure_cell(
     ):
         res.reasons.append(Reason.OUTSIDE_IMAGE)
         return res
-    ref = read_grating(img_rgb, H, cell.reference, cfg, search)
-    meas = read_grating(img_rgb, H, cell.measured, cfg, search)
-    res.reference, res.measured = ref, meas
-    res.offset_mm = meas.shift_mm - ref.shift_mm
-    res.sigma_mm = math.sqrt(meas.sigma_mm**2 + ref.sigma_mm**2 + cfg.sigma_floor_mm**2)
-    res.vernier_offset_mm, res.coincidence_index = _vernier_reading(cell, ref, meas)
+    with np.errstate(all="ignore"):
+        refs = [read_grating(img_rgb, H, g, cfg, search, unwrap_to=0.0) for g in cell.references]
+        ref_anchor = 0.5 * (refs[0].shift_mm + refs[1].shift_mm)
+        meas = read_grating(img_rgb, H, cell.measured, cfg, search, unwrap_to=ref_anchor)
+    res.references, res.measured = refs, meas
+    ref_shift = 0.5 * (refs[0].shift_mm + refs[1].shift_mm)
+    ref_sigma = 0.5 * math.hypot(refs[0].sigma_mm, refs[1].sigma_mm)
+    res.reference_split_mm = refs[0].shift_mm - refs[1].shift_mm
+    res.offset_mm = meas.shift_mm - ref_shift
+    res.sigma_mm = math.sqrt(meas.sigma_mm**2 + ref_sigma**2 + cfg.sigma_floor_mm**2)
+    with np.errstate(all="ignore"):
+        res.vernier_offset_mm, res.coincidence_index = _vernier_reading(cell, refs, meas)
 
-    if min(ref.contrast, meas.contrast) < cfg.min_contrast:
+    every = [meas, *refs]
+    if min(g.contrast for g in every) < cfg.min_contrast:
         res.reasons.append(Reason.LOW_CONTRAST)
-    if min(ref.snr, meas.snr) < cfg.min_modulation_snr:
+    if any(r.luma_contrast * meas.luma_contrast < 0 for r in refs):
+        res.reasons.append(Reason.POLARITY_MISMATCH)
+    ref_sens = 0.5 * (refs[0].shading_sensitivity + refs[1].shading_sensitivity)
+    if (
+        max(g.shading_sensitivity for g in every) > cfg.max_shading_sensitivity
+        or abs(meas.shading_sensitivity - ref_sens) > cfg.max_shading_sensitivity_difference
+    ):
+        res.reasons.append(Reason.SHADING_SENSITIVE)
+    if min(g.snr for g in every) < cfg.min_modulation_snr:
         res.reasons.append(Reason.LOW_SNR)
+    if any(
+        abs(g_r.coarse_mm - g_r.shift_mm) > cfg.max_coarse_disagreement * g.pitch
+        for g_r, g in zip(every, [cell.measured, *cell.references], strict=True)
+    ):
+        res.reasons.append(Reason.COARSE_MISMATCH)
     if abs(res.offset_mm) > cfg.max_offset_mm:
         res.reasons.append(Reason.OUT_OF_RANGE)
     if res.vernier_offset_mm is None or (

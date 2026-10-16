@@ -17,7 +17,7 @@ def test_cells_per_tool_and_axis(layout):
 def test_central_lines_on_cell_centre(layout):
     for cell in layout.cells:
         c = cell.center[0] if cell.axis == "x" else cell.center[1]
-        for g in (cell.reference, cell.measured):
+        for g in cell.gratings:
             pos = g.positions()
             assert len(pos) % 2 == 1
             assert np.isclose(pos[len(pos) // 2], c)
@@ -52,7 +52,15 @@ def test_fiducial_order_tl_tr_br_bl(layout):
 def test_halves_do_not_touch(layout):
     w = layout.line_width
     for cell in layout.cells:
-        assert _disjoint(cell.reference.bbox(w), cell.measured.bbox(w))
+        for ref in cell.references:
+            assert _disjoint(ref.bbox(w), cell.measured.bbox(w))
+        assert _disjoint(cell.references[0].bbox(w), cell.references[1].bbox(w))
+
+
+def test_references_symmetric_around_measured(layout):
+    for cell in layout.cells:
+        a, b = (np.array(r.center) for r in cell.references)
+        assert np.allclose((a + b) / 2, cell.measured.center)
 
 
 def test_toolpaths_cover_every_tool(layout):

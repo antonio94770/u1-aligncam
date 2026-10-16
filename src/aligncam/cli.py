@@ -109,5 +109,31 @@ def measure(
         cv2.imwrite(str(out.parent / f"{out.name}_overlay.png"), draw_overlay(img, layout, m))
 
 
+@app.command()
+def bench(
+    out: Path = typer.Option(Path("out/bench"), help="Directory for results.csv."),
+    cases: int = typer.Option(60, help="Images per sweep point."),
+    workers: int | None = typer.Option(None, help="Worker processes (default: CPUs - 1)."),
+    seed: int = 0,
+) -> None:
+    """Run the Monte Carlo benchmark on synthetic images (takes minutes)."""
+    from aligncam.bench.runner import run_benchmark
+
+    path = run_benchmark(out, cases, workers, seed)
+    typer.echo(f"results: {path}")
+
+
+@app.command("bench-report")
+def bench_report(
+    results: Path = typer.Option(Path("out/bench/results.csv")),
+    docs: Path = typer.Option(Path("docs")),
+) -> None:
+    """Build plots and docs/benchmark.md from benchmark results."""
+    from aligncam.bench.report import build_report
+
+    build_report(results, docs, docs / "images")
+    typer.echo(f"wrote {docs / 'benchmark.md'} and plots in {docs / 'images'}")
+
+
 if __name__ == "__main__":
     app()

@@ -4,17 +4,22 @@ The G-code generator, the image simulator and the measurement all build on the
 :class:`Layout` returned by :func:`build_layout`.
 
 Pattern frame: origin at the pattern centre, +X right, +Y towards the back of the
-bed. A *cell* measures one axis of one tool. It holds two gratings that abut
-without overlapping, like the two scales of a caliper:
+bed. A *cell* measures one axis of one tool. It holds three gratings that abut
+without overlapping, like the scales of a caliper: reference | measured |
+reference. The reference tool prints both outer gratings, the measured tool the
+middle one.
 
-* X cell: vertical lines (the grating varies along X). The reference tool prints
-  the upper half, the measured tool the lower half.
-* Y cell: horizontal lines (the grating varies along Y). The reference tool
-  prints the left half, the measured tool the right half.
+* X cell: vertical lines (the grating varies along X), stacked along Y.
+* Y cell: horizontal lines (the grating varies along Y), stacked along X.
 
-The line with index k = 0 of both gratings sits on the cell centre, so a
+The reference position is the mean of the two outer gratings, which sit
+symmetrically around the measured one. Any smooth error field (lens distortion,
+an imperfect homography, a slightly wrong scale) that varies linearly across the
+cell cancels in that mean.
+
+The line with index k = 0 of every grating sits on the cell centre, so a
 measured tool with zero error has its central line exactly in line with the
-reference central line (the vernier "zero").
+reference central lines (the vernier "zero").
 """
 
 from __future__ import annotations
@@ -78,8 +83,17 @@ class Cell:
     """Tool being measured (equal to the reference tool for the control cell)."""
     axis: Axis
     center: XY
-    reference: Grating
+    references: tuple[Grating, Grating]
+    """The two outer reference gratings (before and after the measured one)."""
     measured: Grating
+
+    @property
+    def reference(self) -> Grating:
+        return self.references[0]
+
+    @property
+    def gratings(self) -> tuple[Grating, ...]:
+        return (self.references[0], self.measured, self.references[1])
 
     @property
     def name(self) -> str:
@@ -90,9 +104,13 @@ class Cell:
         return self.tool == self.reference.tool
 
     def bbox(self, line_width: float) -> tuple[float, float, float, float]:
-        a = self.reference.bbox(line_width)
-        b = self.measured.bbox(line_width)
-        return (min(a[0], b[0]), min(a[1], b[1]), max(a[2], b[2]), max(a[3], b[3]))
+        boxes = np.array([g.bbox(line_width) for g in self.gratings])
+        return (
+            float(boxes[:, 0].min()),
+            float(boxes[:, 1].min()),
+            float(boxes[:, 2].max()),
+            float(boxes[:, 3].max()),
+        )
 
 
 @dataclass(frozen=True)
@@ -134,7 +152,12 @@ class Layout:
 
     def cell_area(self) -> tuple[float, float, float, float]:
         boxes = np.array([c.bbox(self.line_width) for c in self.cells])
-        return (boxes[:, 0].min(), boxes[:, 1].min(), boxes[:, 2].max(), boxes[:, 3].max())
+        return (
+            float(boxes[:, 0].min()),
+            float(boxes[:, 1].min()),
+            float(boxes[:, 2].max()),
+            float(boxes[:, 3].max()),
+        )
 
     def bbox(self) -> tuple[float, float, float, float]:
         """Bounding box of everything that gets printed (mm, pattern frame)."""
@@ -164,7 +187,7 @@ class Layout:
             if disk.tool == tool:
                 paths += _disk_paths(disk, self.line_width)
         for cell in self.cells:
-            for grating in (cell.reference, cell.measured):
+            for grating in cell.gratings:
                 if grating.tool == tool:
                     paths += [Path(tool, seg, "grating") for seg in grating.segments()]
         return paths
@@ -177,29 +200,20 @@ def _n_lines(length: float, pitch: float) -> int:
 def _cell(cfg: PatternConfig, tool: int, axis: Axis, center: XY) -> Cell:
     ref_pitch = cfg.pitch_mm
     meas_pitch = cfg.pitch_mm * cfg.vernier_ratio
-    offset = cfg.half_gap_mm / 2.0 + cfg.line_length_mm / 2.0
+    step = cfg.half_gap_mm + cfg.line_length_mm
     cx, cy = center
+    n_ref = _n_lines(cfg.grating_length_mm, ref_pitch)
+    n_meas = _n_lines(cfg.grating_length_mm, meas_pitch)
     if axis == "x":
-        ref_c, meas_c = (cx, cy + offset), (cx, cy - offset)
+        ref_centers = [(cx, cy + step), (cx, cy - step)]
     else:
-        ref_c, meas_c = (cx - offset, cy), (cx + offset, cy)
-    ref = Grating(
-        cfg.reference_tool,
-        axis,
-        ref_c,
-        ref_pitch,
-        _n_lines(cfg.grating_length_mm, ref_pitch),
-        cfg.line_length_mm,
+        ref_centers = [(cx - step, cy), (cx + step, cy)]
+    refs = tuple(
+        Grating(cfg.reference_tool, axis, c, ref_pitch, n_ref, cfg.line_length_mm)
+        for c in ref_centers
     )
-    meas = Grating(
-        tool,
-        axis,
-        meas_c,
-        meas_pitch,
-        _n_lines(cfg.grating_length_mm, meas_pitch),
-        cfg.line_length_mm,
-    )
-    return Cell(tool, axis, center, ref, meas)
+    meas = Grating(tool, axis, (cx, cy), meas_pitch, n_meas, cfg.line_length_mm)
+    return Cell(tool, axis, center, refs, meas)  # type: ignore[arg-type]
 
 
 def _disk_paths(disk: Disk, line_width: float) -> list[Path]:
@@ -225,7 +239,7 @@ def build_layout(cfg: PatternConfig | None = None) -> Layout:
     measured = list(cfg.tools) + ([cfg.reference_tool] if cfg.include_control else [])
     cols = len(measured)
     col_pitch = cfg.grating_length_mm + cfg.cell_spacing_mm
-    cell_h = 2 * cfg.line_length_mm + cfg.half_gap_mm
+    cell_h = 3 * cfg.line_length_mm + 2 * cfg.half_gap_mm
     row_x_h = cell_h  # X cells are wide and short
     row_y_h = cfg.grating_length_mm  # Y cells are narrow and tall
     total_h = row_x_h + cfg.cell_spacing_mm + row_y_h

@@ -24,6 +24,15 @@ class PhaseFit:
     sigma_mm: float
     amplitude: float
     residual_std: float
+    asymmetry: float = 0.0
+    """Odd (asymmetric) part of the line profile from the 2nd harmonic, relative to
+    the fundamental. 0 for symmetric lines. One-sided lighting of the beads makes it
+    non-zero, and it also shifts the apparent line centre."""
+    evenness: float = 0.0
+    """Even part of the 2nd harmonic relative to the fundamental. Lines are narrower
+    than the gaps between them, so this is positive when the signal has the right
+    sign (lines = peaks) and negative when it is inverted, which would shift the
+    reading by half a pitch."""
 
     @property
     def snr(self) -> float:
@@ -44,6 +53,13 @@ class GratingReading:
     """Detected line centres (u coordinates, NaN where a line was not found)."""
     contrast: float = 0.0
     """Projected colour difference between lines and bed (0..1 RGB units)."""
+    asymmetry: float = 0.0
+    evenness: float = 0.0
+    luma_contrast: float = 0.0
+    """Signed luminance difference lines minus bed (>0: lines lighter than the bed)."""
+    shading_sensitivity: float = 0.0
+    """|line colour| / |line colour - bed colour| along the signal direction. Large
+    values mean bead shading is strong compared with the useful contrast."""
 
 
 def sample_region(
@@ -82,6 +98,9 @@ def grating_patch(
     return patch, u
 
 
+LUMA = np.array([0.2126, 0.7152, 0.0722], np.float32)
+
+
 def line_signal(patch: np.ndarray, u: np.ndarray, g: Grating, bed_margin_mm: float):
     """Project colours onto the bed->filament direction. Lines become positive.
 
@@ -103,10 +122,17 @@ def line_signal(patch: np.ndarray, u: np.ndarray, g: Grating, bed_margin_mm: flo
     strong = inner_px[mag >= np.median(mag)]
     direction = strong.mean(axis=0)
     contrast = float(np.linalg.norm(direction))
+    luma = float(direction @ LUMA)
     if contrast < 1e-6:
-        return np.zeros(patch.shape[:2], np.float32), 0.0
-    sig = diff @ (direction / contrast)
-    return sig.astype(np.float32), contrast
+        return np.zeros(patch.shape[:2], np.float32), 0.0, 0.0, math.inf
+    unit = direction / contrast
+    sig = diff @ unit
+    # Multiplicative shading of the bead changes its colour in proportion to the
+    # colour itself, while the useful signal is the difference from the bed. Their
+    # ratio says how strongly lighting can move the apparent line centre.
+    line_color = bed + direction
+    sensitivity = float(abs(line_color @ unit) / contrast)
+    return sig.astype(np.float32), contrast, luma, sensitivity
 
 
 def fit_phase(
@@ -131,6 +157,9 @@ def fit_phase(
     cols = [np.ones_like(uu), t, t * t]
     for h in range(1, harmonics + 1):
         cols += [np.cos(h * w * uu), np.sin(h * w * uu)]
+    # Linear phase/amplitude drift of the fundamental: absorbs a local scale error
+    # (e.g. lens distortion) so the phase is read at the grating centre.
+    cols += [t * np.cos(w * uu), t * np.sin(w * uu)]
     X = np.column_stack(cols)
     coef, *_ = np.linalg.lstsq(X, yy, rcond=None)
     resid = yy - X @ coef
@@ -149,16 +178,49 @@ def fit_phase(
         sigma = pitch / (2.0 * math.pi) * math.sqrt(max(var_phase, 0.0))
     except np.linalg.LinAlgError:
         sigma = math.inf
-    return PhaseFit(shift, sigma, amp, math.sqrt(s2))
+    asym = even = 0.0
+    if harmonics >= 2 and amp > 0:
+        b2, c2 = coef[5], coef[6]
+        d2 = math.atan2(c2, b2) - 2.0 * math.atan2(c, b)
+        asym = math.hypot(b2, c2) / amp * math.sin(d2)
+        even = math.hypot(b2, c2) / amp * math.cos(d2)
+    return PhaseFit(shift, sigma, amp, math.sqrt(s2), asym, even)
 
 
 def coarse_shift(u: np.ndarray, profile: np.ndarray, g: Grating, search_mm: float) -> float:
-    """Shift of the grating envelope (centroid of the positive signal)."""
-    extent = (g.n_lines - 1) / 2.0 * g.pitch + g.pitch / 2.0 + search_mm
-    m = np.abs(u) <= extent
-    w = np.clip(profile[m], 0, None)
-    s = w.sum()
-    return float((w * u[m]).sum() / s) if s > 0 else 0.0
+    """Shift of the grating as a whole, independent of the phase.
+
+    The local modulation (max - min over one pitch) is high over the grating and
+    low on the bare bed. The midpoint between the two places where it crosses
+    half of its typical value is the grating centre. Using edges instead of a
+    centroid makes the estimate insensitive to slow brightness gradients.
+    """
+    step = float(u[1] - u[0])
+    win = max(int(round(g.pitch / step)), 3)
+    if len(profile) <= win:
+        return 0.0
+    view = np.lib.stride_tricks.sliding_window_view(profile, win)
+    env = view.max(axis=1) - view.min(axis=1)
+    uc = u[win // 2 : win // 2 + len(env)]
+    half = (g.n_lines - 1) / 2.0 * g.pitch
+    inner = np.abs(uc) < 0.6 * half
+    if not inner.any():
+        return 0.0
+    level = 0.5 * float(np.median(env[inner]))
+    above = env > level
+    if not above.any():
+        return 0.0
+    i0 = int(np.argmax(above))
+    i1 = len(above) - 1 - int(np.argmax(above[::-1]))
+
+    def cross(i_out: int, i_in: int) -> float:
+        a, b = env[i_out], env[i_in]
+        t = 0.0 if b == a else (level - a) / (b - a)
+        return float(uc[i_out] + t * (uc[i_in] - uc[i_out]))
+
+    left = cross(i0 - 1, i0) if i0 > 0 else float(uc[0])
+    right = cross(i1 + 1, i1) if i1 < len(env) - 1 else float(uc[-1])
+    return 0.5 * (left + right)
 
 
 def unwrap(shift: float, reference: float, pitch: float) -> float:
@@ -184,35 +246,60 @@ def line_centers(u: np.ndarray, profile: np.ndarray, g: Grating, shift: float) -
     return out
 
 
+def _trend_scatter(x: np.ndarray, y: np.ndarray, degree: int) -> float:
+    """Standard error of the mean of ``y`` after removing a polynomial trend in ``x``."""
+    n = len(y)
+    if n < degree + 3:
+        return math.inf
+    coef = np.polyfit(x, y, degree)
+    resid = y - np.polyval(coef, x)
+    s = math.sqrt(float(resid @ resid) / (n - degree - 1))
+    return s / math.sqrt(n)
+
+
 def read_grating(
     img_rgb: np.ndarray,
     H_img_from_mm: np.ndarray,
     g: Grating,
     cfg: MeasureConfig,
     search_mm: float,
+    unwrap_to: float | None = None,
 ) -> GratingReading:
+    """Read one grating.
+
+    The phase is known modulo one pitch. ``unwrap_to`` picks the period: the
+    caller passes a value it trusts (0 for the reference tool, which also printed
+    the fiducials; the reference shift for the measured tool). Without it the
+    envelope centroid is used, which is much less reliable at low contrast.
+    """
     patch, u = grating_patch(img_rgb, H_img_from_mm, g, cfg, search_mm)
-    sig, contrast = line_signal(patch, u, g, bed_margin_mm=search_mm)
+    sig, contrast, luma, sensitivity = line_signal(patch, u, g, bed_margin_mm=search_mm)
     profile = sig.mean(axis=0)
     coarse = coarse_shift(u, profile, g, search_mm)
-    fit = fit_phase(u, profile, g.pitch, coarse, g.n_lines)
-    shift = unwrap(fit.shift_mm, coarse, g.pitch)
+    anchor = coarse if unwrap_to is None else unwrap_to
+    fit = fit_phase(u, profile, g.pitch, anchor, g.n_lines)
+    shift = unwrap(fit.shift_mm, anchor, g.pitch)
 
     bands = np.array_split(np.arange(sig.shape[0]), max(cfg.bands, 2))
     band_shifts = []
     for rows in bands:
-        bf = fit_phase(u, sig[rows].mean(axis=0), g.pitch, coarse, g.n_lines)
+        bf = fit_phase(u, sig[rows].mean(axis=0), g.pitch, shift, g.n_lines)
         band_shifts.append(unwrap(bf.shift_mm, shift, g.pitch))
     band_shifts_arr = np.array(band_shifts)
-    sigma_bands = float(band_shifts_arr.std(ddof=1) / math.sqrt(len(band_shifts_arr)))
+    # A linear trend across the bands is a shear of the image (smooth error field),
+    # which the symmetric cell layout cancels; only the scatter around it is noise.
+    band_pos = np.array([rows.mean() for rows in bands], float)
+    sigma_bands = _trend_scatter(band_pos, band_shifts_arr, degree=1)
 
     centers = line_centers(u, profile, g, shift)
     # Per-line placement errors are common to all bands, so the band scatter cannot
     # see them. The scatter of the individual line centres around the fitted grating
     # captures them (plus noise).
     resid = centers - (g.indices * g.pitch + shift)
-    resid = resid[np.isfinite(resid)]
-    sigma_lines = float(resid.std(ddof=1) / math.sqrt(len(resid))) if len(resid) >= 5 else math.inf
+    ok = np.isfinite(resid)
+    # Slow variations along the grating (scale error, distortion) are removed with a
+    # quadratic before measuring the line-to-line scatter.
+    sigma_lines = _trend_scatter(g.indices[ok].astype(float), resid[ok], degree=2)
     sigma = math.sqrt(max(sigma_bands, fit.sigma_mm) ** 2 + sigma_lines**2)
     return GratingReading(
         tool=g.tool,
@@ -224,4 +311,8 @@ def read_grating(
         line_indices=g.indices.copy(),
         line_centers_u=centers,
         contrast=contrast,
+        asymmetry=fit.asymmetry,
+        evenness=fit.evenness,
+        luma_contrast=luma,
+        shading_sensitivity=sensitivity,
     )

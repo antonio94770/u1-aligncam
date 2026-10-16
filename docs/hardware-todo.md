@@ -26,7 +26,9 @@ assumption marked `TO VERIFY ON HARDWARE`.
 | Resolution | `resolution_px` | 1920 x 1080 |
 | Pose: distance, tilt, field of view | used only to interpret the benchmark | unknown |
 | Lens distortion (calibration) | `camera_matrix`, `dist_coeffs` | none |
+| Camera distance to the pattern | `Scenario.camera_distance_mm` (simulator only) | 250 mm |
 | Exposure/lighting control (chamber LEDs) | not handled yet | - |
+| **How directional the chamber lighting is** | benchmark `lighting` sweep | 0-0.3 shading strength |
 
 ## Print
 
@@ -35,3 +37,4 @@ assumption marked `TO VERIFY ON HARDWARE`.
 | First-layer quality of 0.45 mm lines at 1.14-1.2 mm pitch | lines must not merge |
 | Contrast of common filaments on the U1 plate | plate colour/texture unknown |
 | Bias of the control cell on real prints | gives the real systematic floor |
+| Colour-dependent lighting bias | compare a T0-only print photographed under the chamber lights against the expected zero; check `polarity_mismatch` advice |

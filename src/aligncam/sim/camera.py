@@ -78,21 +78,23 @@ def camera_for_gsd(
     tilt_deg: float = 0.0,
     azimuth_deg: float = -90.0,
     roll_deg: float = 0.0,
-    focal_px: float = 1400.0,
+    distance_mm: float = 250.0,
     target: tuple[float, float] = (0.0, 0.0),
     margin_px: int = 24,
     k1: float = 0.0,
 ) -> PinholeCamera:
     """Camera whose image is cropped around ``roi_mm`` (pattern frame).
 
-    The camera sits on a sphere around ``target`` at the distance that gives the
-    requested GSD on the optical axis. ``tilt_deg`` is measured from the vertical,
+    The camera sits at ``distance_mm`` from ``target`` and its focal length is chosen
+    to give the requested GSD on the optical axis (a finer GSD means a sharper
+    sensor or a longer lens, not a closer camera). ``tilt_deg`` is measured from the vertical,
     ``azimuth_deg`` is the direction of the camera as seen from the target
     (-90 = in front of the bed), ``roll_deg`` rotates the image. Cropping the image
     to the region of interest is equivalent to a larger sensor with a shifted
     principal point, and keeps the benchmark fast.
     """
-    d = gsd_mm_per_px * focal_px
+    d = distance_mm
+    focal_px = distance_mm / gsd_mm_per_px
     tilt, az = math.radians(tilt_deg), math.radians(azimuth_deg)
     tgt = np.array([target[0], target[1], 0.0])
     pos = tgt + d * np.array(
@@ -115,9 +117,7 @@ def camera_for_gsd(
     hi = corners.max(axis=0) + margin_px
     K[0, 2], K[1, 2] = -lo[0], -lo[1]
     size = (int(math.ceil(hi[0] - lo[0])), int(math.ceil(hi[1] - lo[1])))
+    # OpenCV radial model on normalised coordinates (x / f), centred on the optical
+    # axis, which goes through ``target``.
     dist = None if k1 == 0 else np.array([k1, 0.0, 0.0, 0.0, 0.0])
-    if dist is not None:
-        # Distortion is centred on the crop, so express it on the crop half-diagonal.
-        r = 0.5 * math.hypot(*size) / focal_px
-        dist = dist / (r * r)
     return PinholeCamera(K, R, t, size, dist)

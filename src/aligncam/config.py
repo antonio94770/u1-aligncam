@@ -36,10 +36,10 @@ class PatternConfig(_Model):
     with a resolution of pitch_mm * (1 - vernier_ratio)."""
     grating_length_mm: float = 30.0
     """Extent of each grating along the measured axis."""
-    line_length_mm: float = 6.0
-    """Length of every grating line (= height of each half of a cell)."""
+    line_length_mm: float = 5.0
+    """Length of every grating line (= height of each of the three gratings of a cell)."""
     half_gap_mm: float = 0.8
-    """Clearance between the T0 half and the Tn half of a cell."""
+    """Clearance between neighbouring gratings of a cell."""
     cell_spacing_mm: float = 6.0
     line_width_mm: float = 0.45
     layer_height_mm: float = 0.25
@@ -156,6 +156,8 @@ class MeasureConfig(_Model):
     """Largest tool error the measurement will report. Larger errors are rejected:
     a grating shifted by more than half a pitch cannot be told apart from its
     neighbour line without extra information."""
+    max_coarse_disagreement: float = 0.35
+    """Envelope position vs phase reading, as a fraction of the pitch."""
     max_fiducial_reproj_px: float = 2.5
     min_modulation_snr: float = 2.0
     """Sanity gate: amplitude of the line signal over the fit residual."""
@@ -167,6 +169,13 @@ class MeasureConfig(_Model):
     Covers effects the statistics cannot see (e.g. lighting that shifts the apparent
     centre of a bead differently for different colours). The value is calibrated on
     synthetic data by the benchmark; it must be re-checked on real prints."""
+    max_shading_sensitivity: float = 3.0
+    """Upper limit of |line colour| / |line colour - bed colour|. Calibrated on the
+    synthetic benchmark; TO VERIFY ON HARDWARE with the real chamber lighting."""
+    max_shading_sensitivity_difference: float = 1.0
+    """Upper limit of the sensitivity difference between Tn and T0. The lighting
+    bias is differential: two filaments that react the same way cancel out.
+    TO VERIFY ON HARDWARE."""
     max_sigma_mm: float = 0.02
     max_phase_vernier_disagreement_mm: float = 0.03
     max_control_bias_mm: float = 0.03

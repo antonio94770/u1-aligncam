@@ -37,7 +37,7 @@ aligncam = "aligncam.cli:app"
 where = ["src"]
 
 [tool.setuptools.package-data]
-aligncam = ["pattern/templates/*", "web/static/*", "data/*.yaml"]
+aligncam = ["web/static/*"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

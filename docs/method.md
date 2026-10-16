@@ -3,14 +3,25 @@
 ## The pattern
 
 Every tool prints, on a single layer, a set of **cells**. A cell measures one axis
-of one tool and contains two gratings that sit side by side without overlapping,
-like the two scales of a caliper:
+of one tool and contains three gratings that sit side by side without
+overlapping, like the scales of a caliper: **T0 | Tn | T0**.
 
-- the **reference grating** printed by T0 (pitch `p0`, default 1.20 mm);
-- the **measured grating** printed by Tn (pitch `pn = p0 * vernier_ratio`,
-  default 1.14 mm).
+- two **reference gratings** printed by T0 (pitch `p0`, default 1.20 mm), one on
+  each side;
+- the **measured grating** printed by Tn in the middle (pitch
+  `pn = p0 * vernier_ratio`, default 1.14 mm).
 
-The central line (index k = 0) of both gratings is commanded at the cell centre.
+The central line (index k = 0) of every grating is commanded at the cell centre.
+
+**Why a sandwich.** An early version used only two gratings (T0 above, Tn below).
+On synthetic images with realistic uncorrected lens distortion (k1 around -0.1 to
+-0.3, typical of wide-angle webcams), the two halves sit a few millimetres apart
+and see a different distortion. A 5-point homography cannot remove that, and the
+differential error reached tenths of a millimetre. With the reference averaged
+from two gratings placed symmetrically around Tn, every error field that varies
+linearly across the cell cancels: distortion, homography error, scale,
+perspective. A camera calibration (`camera_matrix`/`dist_coeffs` in the config)
+is still recommended, but it is no longer mandatory for moderate distortion.
 X cells use vertical lines (they measure X), Y cells use horizontal lines. There is
 one X and one Y cell per tool, plus a **control cell** where T0 prints both halves.
 Four corner disks and an orientation dot, all printed by T0, define the pattern
@@ -50,21 +61,30 @@ a second, independent estimate.
    "bed → filament", so lines are positive whatever the colours. The tool identity
    comes from the layout, not from colour segmentation, which keeps the method
    working with similar filament colours.
-4. **Coarse position.** Centroid of the positive signal (envelope of the grating).
-   It removes the one-pitch ambiguity of the phase.
+4. **Period choice and coarse check.** The phase is known modulo one pitch. The
+   T0 gratings are unwrapped around 0: T0 also printed the fiducials, so its
+   shift is small by construction. The Tn grating is unwrapped around the T0
+   reference, which limits the range to +/- half a pitch (`max_offset_mm` = 0.5).
+   An independent coarse position, the midpoint of the grating edges found on the
+   local modulation envelope, must agree, or the cell is rejected
+   (`coarse_mismatch`). An earlier centroid-based version was biased by uneven
+   lighting. In the benchmark it occasionally picked the wrong period for one
+   reference, which produced accepted errors of about p/2 = 0.6 mm. Edge-based
+   checking removed them.
 5. **Phase fit.** Least squares on the profile averaged along the lines: quadratic
    trend (illumination) plus 4 harmonics of the known pitch. The phase of the
    fundamental gives the grating shift, unwrapped with the coarse position.
-6. **Offset.** `offset = shift(Tn grating) - shift(T0 grating)`. Both gratings are
-   a few millimetres apart and see the same homography and lens errors. Those
-   errors largely cancel.
+   Two extra terms model a linear drift of the fundamental (a local scale error),
+   so the phase is read at the grating centre even when distortion stretches it.
+6. **Offset.** `offset = shift(Tn) - (shift(T0 before) + shift(T0 after)) / 2`.
 7. **Vernier cross-check.** The line centres are detected one by one;
    `d_k = u_n(k) - u_0(k) = offset + k (pn - p0)` gives an independent estimate and
    the coincidence index a human would read.
 8. **Uncertainty.** Quadrature sum of: the scatter between 6 bands along the lines
-   (or the least-squares covariance, whichever is larger), the scatter of
-   individual line centres (per-line placement errors, which bands cannot see),
-   and a systematic floor (`sigma_floor_mm`).
+   after removing a linear trend (a shear, cancelled by the sandwich), or the
+   least-squares covariance if larger; the scatter of individual line centres
+   after removing a quadratic trend (per-line placement errors, which bands cannot
+   see); and a systematic floor (`sigma_floor_mm`).
 
 ## Quality gates (reject instead of guessing)
 
@@ -74,9 +94,12 @@ a second, independent estimate.
 | `fiducial_reprojection` | homography does not fit the 5 fiducials |
 | `outside_image` | a cell is not fully visible |
 | `low_contrast` | filament and bed colours too close |
+| `polarity_mismatch` | one filament is lighter than the plate and the other darker (see below) |
+| `shading_sensitive` | filament too close to the plate colour for its brightness, or T0 and Tn react very differently to bead shading |
 | `low_snr` | periodic signal too weak |
 | `high_uncertainty` | sigma above `max_sigma_mm` (default 0.02 mm) |
 | `phase_vernier_mismatch` | the two estimators disagree by more than 0.03 mm |
+| `coarse_mismatch` | the grating edges disagree with the phase reading by more than 0.35 pitch (wrong period) |
 | `out_of_range` | offset larger than `max_offset_mm` (unambiguous range) |
 | `control_bias` | the T0-vs-T0 control cell does not read zero: all tools rejected |
 
@@ -85,8 +108,19 @@ a second, independent estimate.
 - The method measures **where the material ended up**, not where the nozzle was.
   Systematic extrusion effects that differ between tools (e.g. a partially
   clogged nozzle that deposits material off-centre) are measured as offset.
-- Directional lighting shifts the apparent centre of a raised bead. The shift
-  differs between filament colours, so it does not fully cancel. The simulator
-  models this effect, and it is one reason for the systematic floor.
+- **Directional lighting is the main open risk.** A bead lit from one side has a
+  bright flank and a dark flank, so its apparent centre moves. The amount and the
+  direction depend on how the filament compares with the plate. For a filament
+  lighter than the plate, the centre moves one way. For a darker one, it moves the
+  other way. When T0 and Tn are on opposite sides of the plate brightness, the two
+  shifts add up. In the simulator this gave errors up to about 0.1 mm, and the phase
+  fit and the vernier both agreed with that wrong value. That is why
+  `polarity_mismatch` rejects such pairs. With the same polarity, a residual bias
+  remains and grows with the lighting directionality (see the `lighting` sweep in
+  [benchmark.md](benchmark.md)). How directional the U1 chamber lighting is, is TO
+  VERIFY ON HARDWARE. Possible mitigations on the roadmap: a lighting-bias
+  calibration cell (the same tool printed on a base of a different colour, so the
+  true offset is zero but the brightness ratio changes), or two photos taken under
+  different lighting.
 - Only XY. Z offsets need a different method.
 - Plate warping and a pattern that is not flat would break the plane homography.

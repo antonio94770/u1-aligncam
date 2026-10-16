@@ -6,7 +6,7 @@ pattern:
   pitch_mm: 1.2                # reference (T0) grating pitch
   vernier_ratio: 0.95          # measured-tool pitch = pitch_mm * vernier_ratio (1.0 = equal pitches)
   grating_length_mm: 30.0
-  line_length_mm: 6.0
+  line_length_mm: 5.0
   half_gap_mm: 0.8
   cell_spacing_mm: 6.0
   line_width_mm: 0.45
@@ -23,9 +23,12 @@ measure:
   bands: 6
   end_trim_fraction: 0.15
   max_offset_mm: 0.5
+  max_coarse_disagreement: 0.35
   max_fiducial_reproj_px: 2.5
   min_modulation_snr: 2.0
   min_contrast: 0.03
+  max_shading_sensitivity: 3.0       # TO VERIFY ON HARDWARE (chamber lighting)
+  max_shading_sensitivity_difference: 1.0   # TO VERIFY ON HARDWARE
   sigma_floor_mm: 0.006
   max_sigma_mm: 0.02
   max_phase_vernier_disagreement_mm: 0.03

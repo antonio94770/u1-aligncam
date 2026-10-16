@@ -93,3 +93,27 @@ def test_overlay_and_dict(layout):
     m = measure_image(r.image, layout)
     assert set(m.to_dict()["tools"]) == {"T1", "T2", "T3"}
     assert draw_overlay(r.image, layout, m).shape[0] == 2 * r.image.shape[0]
+
+
+def test_polarity_mismatch_rejected(layout):
+    # White T0 and black T1 on a mid-grey plate: one lighter, one darker.
+    app = Appearance(
+        bed_rgb=(0.4, 0.4, 0.4),
+        tool_rgb={
+            0: (0.9, 0.9, 0.9),
+            1: (0.05, 0.05, 0.05),
+            2: (0.9, 0.2, 0.2),
+            3: (0.9, 0.8, 0.2),
+        },
+    )
+    m = measure_image(simulate(Scenario(seed=10, appearance=app), layout).image, layout)
+    assert m.tools[1].status == "rejected"
+    assert Reason.POLARITY_MISMATCH in m.tools[1].reasons
+
+
+def test_reference_unwrap_survives_uneven_light(layout):
+    deg = Degradation(illumination_gradient=0.4, vignetting=0.3)
+    sc = Scenario(seed=11, degradation=deg)
+    m = measure_image(simulate(sc, layout).image, layout)
+    for c in m.cells:
+        assert c.reference_split_mm is not None and abs(c.reference_split_mm) < 0.1

@@ -67,8 +67,8 @@ def draw_overlay(img_bgr: np.ndarray, layout: Layout, m: Measurement, scale: int
         x0, y0, x1, y1 = cell.bbox(layout.line_width)
         box = _to_img(H, [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]) * scale
         cv2.polylines(out, [np.round(box).astype(np.int32)], True, color, 1, cv2.LINE_AA)
-        if res.reference is not None:
-            _line_ticks(out, H, cell.reference, res.reference, (255, 255, 0), scale)
+        for g, reading in zip(cell.references, res.references, strict=False):
+            _line_ticks(out, H, g, reading, (255, 255, 0), scale)
         if res.measured is not None:
             _line_ticks(out, H, cell.measured, res.measured, (255, 0, 255), scale)
         label = res.name + (" ctrl" if res.is_control else "")

@@ -189,6 +189,7 @@ def render_texture(
 
     height = np.zeros((H, W), np.float32)
     cov = np.zeros((H, W), np.float32)
+    material = np.zeros((H, W), np.float32)  # coverage by any tool
     for tool in layout.print_order:
         cov[:] = 0.0
         off = np.asarray(offsets.get(tool, (0.0, 0.0)), float)
@@ -210,6 +211,7 @@ def render_texture(
         k = app.contrast.get(tool, 1.0)
         color = bed + k * (np.asarray(app.tool_rgb[tool], np.float32) - bed)
         rgb = rgb * (1.0 - cov[..., None]) + color[None, None, :] * cov[..., None]
+        np.maximum(material, cov, out=material)
 
     if app.height_shading > 0:
         hs = cv2.GaussianBlur(height, (0, 0), 0.08 * s)
@@ -217,7 +219,8 @@ def render_texture(
         gy = -cv2.Sobel(hs, cv2.CV_32F, 0, 1, ksize=3) / 8.0 * s * layout.line_width
         lx, ly = app.light_dir
         norm = math.hypot(lx, ly) or 1.0
-        shade = 1.0 + app.height_shading * (gx * lx + gy * ly) / norm
+        # Only the bead surface is shaded; the flat plate around it is not.
+        shade = 1.0 + app.height_shading * material * (gx * lx + gy * ly) / norm
         rgb = rgb * np.clip(shade, 0.3, 2.0)[..., None]
 
     tex.rgb = np.clip(rgb, 0.0, 1.5).astype(np.float32)
