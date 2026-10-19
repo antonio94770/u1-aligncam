@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/antonio94770/u1-aligncam/actions/workflows/ci.yml/badge.svg)](https://github.com/antonio94770/u1-aligncam/actions/workflows/ci.yml)
 [![License: GPL v3+](https://img.shields.io/badge/license-GPL--3.0--or--later-blue.svg)](LICENSE)
-![Python 3.11-3.13](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13-blue.svg)
+![Python 3.11-3.14](https://img.shields.io/badge/python-3.11%20%7C%203.12%20%7C%203.13%20%7C%203.14-blue.svg)
 
 **Camera-based measurement of the XY offsets between the four tool heads of the
 Snapmaker U1.** Every tool prints a small vernier/grating pattern. The chamber
@@ -275,7 +275,7 @@ ruff check . && ruff format --check .
 pytest                      # ~1 minute; the full benchmark is not part of CI
 ```
 
-CI runs lint and tests on Linux and Windows, Python 3.11-3.13. Contributor rules:
+CI runs lint and tests on Linux and Windows, Python 3.11-3.14. Contributor rules:
 do not invent U1 details (make them configurable and mark them `TO VERIFY ON
 HARDWARE`), never write offsets automatically, and label every result as synthetic
 or say exactly what was tested.
